@@ -19,7 +19,7 @@ A React Native mobile application for real-time path optimization and driver-pas
 ### 🔧 **Core Features**
 - **Real-Time Tracking**: Live location updates and route optimization
 - **Multi-Sharing**: Efficient ride sharing with multiple passengers
-- **Smart Matching**: AI-powered driver-passenger pairing
+- **Smart Pairing**: AI-powered driver-passenger pairing
 - **Role-Based Access**: Separate interfaces for passengers and drivers
 
 ## Screenshots
