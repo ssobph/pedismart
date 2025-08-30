@@ -1,6 +1,8 @@
 import { locationService } from '@/services/locationService';
 import { useQuery } from '@tanstack/react-query';
 
+// REMINDERS: maybe find a better way to do this
+
 // FETCHING NEARBY DRIVERS WITHIN A GIVEN RADIUS FROM A CENTRAL POINT.
 /**
  * fetching nearby drivers within a given radius from a central point.
