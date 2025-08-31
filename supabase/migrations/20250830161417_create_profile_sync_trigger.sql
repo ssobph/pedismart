@@ -7,8 +7,7 @@ BEGIN
   UPDATE auth.users
   SET
     raw_user_meta_data = raw_user_meta_data || jsonb_build_object(
-      'full_name', NEW.full_name,
-      'username', NEW.username
+      'full_name', NEW.full_name
     )
   WHERE id = NEW.id;
   RETURN NEW;
@@ -21,7 +20,7 @@ CREATE OR REPLACE TRIGGER on_profile_created
   EXECUTE FUNCTION public.sync_profile_to_auth_metadata();
 
 CREATE OR REPLACE TRIGGER on_profile_updated
-  AFTER UPDATE OF full_name, username ON public.profiles
+  AFTER UPDATE OF full_name ON public.profiles
   FOR EACH ROW
-  WHEN (OLD.full_name IS DISTINCT FROM NEW.full_name OR OLD.username IS DISTINCT FROM NEW.username)
+  WHEN (OLD.full_name IS DISTINCT FROM NEW.full_name)
   EXECUTE FUNCTION public.sync_profile_to_auth_metadata();
