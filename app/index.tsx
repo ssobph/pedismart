@@ -1,10 +1,5 @@
-import { ThemedView } from '@/components/ui/Themed';
-import { ActivityIndicator } from 'react-native';
+import { Redirect } from 'expo-router';
 
 export default function AppEntry() {
-  return (
-    <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" />
-    </ThemedView>
-  );
+  return <Redirect href="/(auth)/login" />;
 }

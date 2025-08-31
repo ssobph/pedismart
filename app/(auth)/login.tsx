@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Link } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '@/components/ui/Button';
-import { supabase } from '@/lib/supabase';
 import { spacing } from '@/constants/StyleGuide';
+import { supabase } from '@/lib/supabase';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link } from 'expo-router';
+import { useState } from 'react';
+import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -13,11 +13,23 @@ export default function LoginScreen() {
 
   async function signInWithEmail() {
     setIsLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) Alert.alert('Sign In Error', error.message);
-    // The onAuthStateChange listener in AuthContext handles the redirect on success.
-    setIsLoading(false);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (error) {
+        console.error('Sign in error:', error);
+        Alert.alert('Sign In Error', error.message);
+      }
+    } catch (unexpectedError) {
+      console.error('Sign in failed:', unexpectedError);
+      Alert.alert('Sign In Error', 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -59,11 +71,11 @@ export default function LoginScreen() {
               onPress={signInWithEmail}
               isLoading={isLoading}
               disabled={isLoading}
-              variant="secondary" // Using the green "Driver" color for primary action
+              variant="secondary"
               style={styles.mainButton}
             />
             <Link href="/(auth)/signup" asChild>
-              <Button title="Create an Account" variant="outline" style={styles.outlineButton} />
+              <Button title="Create an Account" variant="outline" style={styles.outlineButton} onPress={() => {}} />
             </Link>
           </View>
         </ScrollView>
@@ -72,7 +84,6 @@ export default function LoginScreen() {
   );
 }
 
-// Styles adapted from your RoleSelection screen for a cohesive look
 const styles = StyleSheet.create({
   container: { flex: 1 },
   gradient: { flex: 1 },
