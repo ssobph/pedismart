@@ -1,17 +1,22 @@
-import { Tabs } from 'expo-router';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 
-export default function PassengerLayout() {
+export default function PassengerTabLayout() {
+  const theme = useColorScheme() ?? 'light';
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#4A90E2',
-        tabBarInactiveTintColor: '#7F8C8D',
+        tabBarActiveTintColor: Colors[theme].primary,
+        tabBarInactiveTintColor: Colors[theme].placeholder, 
+
         tabBarStyle: {
-          backgroundColor: 'white',
+          backgroundColor: Colors[theme].card,
           borderTopWidth: 1,
-          borderTopColor: '#E8E8E8',
+          borderTopColor: Colors[theme].border,
           paddingBottom: 5,
           paddingTop: 5,
           height: 60,
@@ -20,14 +25,13 @@ export default function PassengerLayout() {
           fontSize: 12,
           fontWeight: '500',
         },
-      }}
-    >
+      }}>
       <Tabs.Screen
-        name="index"
+        name="map"
         options={{
           title: 'Find Ride',
           tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 name="search" size={size} color={color} />
+            <FontAwesome5 name="map-marked-alt" size={size} color={color} />
           ),
         }}
       />
@@ -36,7 +40,7 @@ export default function PassengerLayout() {
         options={{
           title: 'My Rides',
           tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 name="list" size={size} color={color} />
+            <FontAwesome5 name="list-alt" size={size} color={color} />
           ),
         }}
       />
@@ -45,7 +49,7 @@ export default function PassengerLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 name="user" size={size} color={color} />
+            <FontAwesome5 name="user-circle" size={size} color={color} />
           ),
         }}
       />

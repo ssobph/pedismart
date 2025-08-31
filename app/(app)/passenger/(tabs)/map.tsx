@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, Dimensions } from 'react-native';
-import { router } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useState } from 'react';
+import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-const { width } = Dimensions.get('window');
 
 export default function PassengerHome() {
   const [pickupLocation, setPickupLocation] = useState('');
@@ -16,8 +15,6 @@ export default function PassengerHome() {
   const handleToggleOnline = () => {
     setIsOnline(!isOnline);
   };
-
-  // Removed handleFindDrivers function since we're consolidating into one feature
 
   return (
     <SafeAreaView style={styles.container}>
@@ -72,7 +69,6 @@ export default function PassengerHome() {
           <Text style={styles.mapText}>Available Pedicabs</Text>
           <Text style={styles.mapSubtext}>Tap to see details</Text>
           
-          {/* Available Pedicab Icons */}
           <View style={styles.pedicabIcons}>
             <View style={styles.pedicabIcon}>
               <FontAwesome5 name="car" size={16} color="white" />

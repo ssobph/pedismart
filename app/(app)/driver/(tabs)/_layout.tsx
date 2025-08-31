@@ -1,17 +1,22 @@
-import { Tabs } from 'expo-router';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 
-export default function DriverLayout() {
+export default function DriverTabLayout() {
+  const theme = useColorScheme() ?? 'light';
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#27AE60',
-        tabBarInactiveTintColor: '#7F8C8D',
+        tabBarActiveTintColor: Colors[theme].secondary,
+        tabBarInactiveTintColor: Colors[theme].placeholder,
+
         tabBarStyle: {
-          backgroundColor: 'white',
+          backgroundColor: Colors[theme].card,
           borderTopWidth: 1,
-          borderTopColor: '#E8E8E8',
+          borderTopColor: Colors[theme].border,
           paddingBottom: 5,
           paddingTop: 5,
           height: 60,
@@ -20,23 +25,13 @@ export default function DriverLayout() {
           fontSize: 12,
           fontWeight: '500',
         },
-      }}
-    >
+      }}>
       <Tabs.Screen
-        name="index"
+        name="map"
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => (
             <FontAwesome5 name="tachometer-alt" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="find-passengers"
-        options={{
-          title: 'Find Passengers',
-          tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 name="users" size={size} color={color} />
           ),
         }}
       />
@@ -54,7 +49,7 @@ export default function DriverLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 name="user" size={size} color={color} />
+            <FontAwesome5 name="user-cog" size={size} color={color} />
           ),
         }}
       />

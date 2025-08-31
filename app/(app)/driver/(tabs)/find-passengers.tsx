@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Alert, Animated } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const mockPassengers = [
   {
@@ -204,7 +204,7 @@ export default function FindPassengers() {
               <View style={styles.passengerDetails}>
                 <Text style={styles.passengerName}>{passenger.name}</Text>
                 
-                <View style={styles.statsRow}>
+                <View style={styles.passengerStatsRow}>
                   <View style={styles.stat}>
                     <FontAwesome5 name="star" size={12} color="#F39C12" />
                     <Text style={styles.statText}>{passenger.rating}</Text>
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     marginBottom: 8,
   },
-  statsRow: {
+  passengerStatsRow: {
     flexDirection: 'row',
     gap: 15,
   },
