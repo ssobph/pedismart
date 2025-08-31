@@ -40,4 +40,18 @@ export const profileService = {
     if (error) throw new Error(error.message);
     return data;
   },
+
+  createProfile: async (userId: string, fullName: string, role: 'passenger' | 'driver'): Promise<Profile> => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({
+        id: userId,
+        full_name: fullName,
+        role: role,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
 };
