@@ -8,14 +8,23 @@
     "scheme": "pedismart2",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "PediSmart needs your location to show nearby drivers and help you book rides.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "PediSmart uses your location to update trips in real time.",
+        "NSLocationAlwaysUsageDescription": "PediSmart uses your location to update trips in real time."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": false
+      "edgeToEdgeEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -33,7 +42,19 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-secure-store"
+        "expo-secure-store",
+        [
+          "@rnmapbox/maps",
+          {
+            "RNMapboxMapsDownloadToken": "${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}",
+            "android": {
+              "accessToken": "${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}"
+            },
+            "ios": {
+              "accessToken": "${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}"
+            }
+          }
+        ]
     ],
     "experiments": {
       "typedRoutes": true
