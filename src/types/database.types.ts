@@ -34,6 +34,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      driver_status_logs: {
+        Row: {
+          changed_at: string
+          created_at: string
+          driver_id: string
+          id: string
+          status: string
+        }
+        Insert: {
+          changed_at?: string
+          created_at?: string
+          driver_id: string
+          id?: string
+          status: string
+        }
+        Update: {
+          changed_at?: string
+          created_at?: string
+          driver_id?: string
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_status_logs_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drivers: {
         Row: {
           created_at: string
@@ -151,12 +183,46 @@ export type Database = {
           },
         ]
       }
+      trip_passengers: {
+        Row: {
+          id: number
+          inserted_at: string
+          passenger_id: string
+          status: string
+          trip_id: number
+        }
+        Insert: {
+          id?: number
+          inserted_at?: string
+          passenger_id: string
+          status?: string
+          trip_id: number
+        }
+        Update: {
+          id?: number
+          inserted_at?: string
+          passenger_id?: string
+          status?: string
+          trip_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_passengers_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_waypoints: {
         Row: {
           address: string | null
           completed_at: string | null
           id: number
+          kind: string | null
           location: unknown
+          order_index: number | null
           passenger_id: string
           sequence_order: number
           status: Database["public"]["Enums"]["waypoint_status"]
@@ -167,7 +233,9 @@ export type Database = {
           address?: string | null
           completed_at?: string | null
           id?: never
+          kind?: string | null
           location: unknown
+          order_index?: number | null
           passenger_id: string
           sequence_order: number
           status?: Database["public"]["Enums"]["waypoint_status"]
@@ -178,7 +246,9 @@ export type Database = {
           address?: string | null
           completed_at?: string | null
           id?: never
+          kind?: string | null
           location?: unknown
+          order_index?: number | null
           passenger_id?: string
           sequence_order?: number
           status?: Database["public"]["Enums"]["waypoint_status"]
@@ -276,6 +346,36 @@ export type Database = {
           status: Database["public"]["Enums"]["trip_status"]
         }[]
       }
+      get_driver_stats: {
+        Args: { p_driver_id: string; p_tz?: string }
+        Returns: {
+          average_rating: number
+          hours_online: number
+          trips_completed: number
+        }[]
+      }
+      get_nearby_requests: {
+        Args: {
+          driver_lat: number
+          driver_lng: number
+          radius_m: number
+          since?: string
+        }
+        Returns: {
+          accepted_at: string
+          cancelled_at: string
+          completed_at: string
+          distance_meters: number
+          driver_id: string
+          dropoff_location: Json
+          id: number
+          passenger_id: string
+          pickup_location: Json
+          requested_at: string
+          started_at: string
+          status: Database["public"]["Enums"]["trip_status"]
+        }[]
+      }
       nearby_drivers: {
         Args: { lat: number; long: number; radius_meters: number }
         Returns: {
@@ -284,6 +384,18 @@ export type Database = {
           full_name: string
           plate_number: string
           profile_id: string
+        }[]
+      }
+      nearby_passengers: {
+        Args: { lat: number; long: number; radius_meters: number }
+        Returns: {
+          distance_meters: number
+          passenger_id: string
+          passenger_name: string
+          pickup_address: string
+          pickup_location: unknown
+          requested_at: string
+          trip_id: number
         }[]
       }
     }
@@ -295,6 +407,8 @@ export type Database = {
         | "in_progress"
         | "completed"
         | "cancelled"
+        | "offered"
+        | "declined"
       user_role: "passenger" | "driver"
       waypoint_status: "pending" | "completed"
       waypoint_type: "pickup" | "dropoff"
@@ -435,6 +549,8 @@ export const Constants = {
         "in_progress",
         "completed",
         "cancelled",
+        "offered",
+        "declined",
       ],
       user_role: ["passenger", "driver"],
       waypoint_status: ["pending", "completed"],

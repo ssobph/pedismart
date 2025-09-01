@@ -1,4 +1,5 @@
 import Config from '@/constants/Config';
+import { Database } from '@/types';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import * as aesjs from 'aes-js';
@@ -66,7 +67,7 @@ class LargeSecureStore {
   }
 }
 
-export const supabase = createClient(Config.supabaseUrl!, Config.supabaseAnonKey!, {
+export const supabase = createClient<Database>(Config.supabaseUrl!, Config.supabaseAnonKey!, {
   auth: {
     storage: new LargeSecureStore(),
     autoRefreshToken: true,
