@@ -16,19 +16,33 @@ export function useNearbyDrivers(
 ) {
   return useQuery({
     queryKey: ['nearbyDrivers', location, radiusInMeters],
-    queryFn: () => {
+    queryFn: async () => {
       if (!location) {
         throw new Error('Location is not available');
       }
-      return locationService.getNearbyDrivers(
+      console.log('[useNearbyDrivers] Fetching drivers near:', location, `radius: ${radiusInMeters}m`);
+      
+      const result = await locationService.getNearbyDrivers(
         location.latitude,
         location.longitude,
         radiusInMeters
       );
+      
+      console.log('[useNearbyDrivers] Found drivers:', result?.length || 0);
+      return result || [];
     },
     // EXECUTE ONLY IF LOCATION IS PROVIDED.
     enabled: !!location,
     // AUTOMATICALLY REFRESH EVERY 10 SECONDS TO KEEP THE DRIVER POSITIONS FRESH.
     refetchInterval: 10000, // TODO: 10 seconds BUT ask jastine
+    // Add retry logic for network errors
+    retry: (failureCount, error) => {
+      if (failureCount >= 3) return false;
+      // Retry on network errors, but not on location errors
+      return !error.message.includes('Location is not available');
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    // Add stale time to reduce unnecessary requests
+    staleTime: 5000, // 5 seconds
   });
 }
