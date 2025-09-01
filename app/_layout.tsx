@@ -1,19 +1,35 @@
 import { ProfileSetupModal } from '@/components/ProfileSetupModal';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LocationProvider } from '@/contexts/LocationContext';
+import { NetworkProvider } from '@/contexts/NetworkContext';
 import useCachedResources from '@/hooks/useCachedResources';
 import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import { AppState, View } from 'react-native';
+import { AppState } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const queryClient = new QueryClient();
 
-// Tells Supabase Auth to continuously refresh the session automatically if
-// the app is in the foreground. When this is added, you will continue to receive
-// `onAuthStateChange` events with the `TOKEN_REFRESHED` or `SIGNED_OUT` event
-// if the user's session is terminated. This should only be registered once.
+const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+});
+
+persistQueryClient({
+  queryClient,
+  persister: asyncStoragePersister,
+  dehydrateOptions: {
+    shouldDehydrateQuery: (query) => {
+      const queryKey = query.queryKey as string[];
+      return ['profile', 'rideHistory', 'activeTrip'].includes(queryKey[0]);
+    },
+  },
+});
+
 AppState.addEventListener('change', (state) => {
   if (state === 'active') {
     supabase.auth.startAutoRefresh()
@@ -42,14 +58,16 @@ function RootNavigator() {
     }
   }, [session, profile, isLoading, needsProfileSetup, inAuthGroup, segments, router]);
 
-  const handleProfileSetupComplete = () => {};
-
   return (
     <>
       <Slot />
       <ProfileSetupModal
         visible={!!session && needsProfileSetup && !isLoading}
-        onComplete={handleProfileSetupComplete}
+        onComplete={() => {
+          // When profile is set up, refetch queries that depend on it.
+          queryClient.invalidateQueries({ queryKey: ['profile'] });
+          queryClient.invalidateQueries({ queryKey: ['activeTrip'] });
+        }}
       />
     </>
   );
@@ -63,14 +81,16 @@ export default function RootLayout() {
   }
 
   return (
-    <View onLayout={onLayoutRootView} style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <LocationProvider>
-            <RootNavigator />
-          </LocationProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </View>
+      <SafeAreaView onLayout={onLayoutRootView} style={{ flex: 1 }}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <NetworkProvider>
+              <LocationProvider>
+                <RootNavigator />
+              </LocationProvider>
+            </NetworkProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaView>
   );
 }
