@@ -8,3 +8,5 @@ https://github.com/rnmapbox/maps
 https://github.com/Turfjs/turf
 https://github.com/mapbox/mapbox-gl-geocoder
 https://github.com/mapbox/mapbox-gl-directionsg
+
+https://developer.apple.com/documentation/Security/complying-with-encryption-export-regulations
