@@ -1,6 +1,6 @@
-import { useAuth } from '@/contexts/AuthContext'; // Assuming you create this
+import { useAuth } from '@/contexts/AuthContext';
 import { profileService } from '@/services/profileService';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useProfile() {
   const { user } = useAuth();
@@ -8,14 +8,44 @@ export function useProfile() {
 
   return useQuery({
     queryKey: ['profile', userId],
-    queryFn: () => {
+    queryFn: async () => {
       if (!userId) {
-        // safeguard lang, though naa nay enabled props
         throw new Error('User is not authenticated');
       }
-      return profileService.getProfile(userId);
+      
+      const basicProfile = await profileService.getProfile(userId);
+      if (!basicProfile) {
+        throw new Error('Profile not found');
+      }
+      
+      if (basicProfile.role === 'driver') {
+        return profileService.getDriverProfile(userId);
+      }
+      
+      return basicProfile;
     },
-    // DILI NI MA-EXECUTE IF WALAY USERID
     enabled: !!userId,
+  });
+}
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  return useMutation({
+    mutationFn: (updates: any) => {
+      if (!userId) {
+        throw new Error('User is not authenticated');
+      }
+      return profileService.updateProfile(userId, updates);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+      queryClient.setQueryData(['profile', userId], data);
+    },
+    onError: (error) => {
+      console.error('Failed to update profile:', error);
+    },
   });
 }

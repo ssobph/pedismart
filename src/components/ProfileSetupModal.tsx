@@ -5,14 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
-    Alert,
-    Modal,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface ProfileSetupModalProps {
@@ -21,7 +21,7 @@ interface ProfileSetupModalProps {
 }
 
 export function ProfileSetupModal({ visible, onComplete }: ProfileSetupModalProps) {
-  const { createProfile, user } = useAuth();
+  const { createProfile } = useAuth();
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'passenger' | 'driver' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +73,7 @@ export function ProfileSetupModal({ visible, onComplete }: ProfileSetupModalProp
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <ThemedText type="h3" style={styles.label}>
-                What's your name?
+                What&apos;s your name?
               </ThemedText>
               <TextInput
                 style={styles.input}

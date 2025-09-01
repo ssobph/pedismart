@@ -32,7 +32,6 @@ export const profileService = {
       .eq('profile_id', driverId)
       .single();
 
-    // if no record, create one with default values
     if (driverError?.code === 'PGRST116') {
       const { data: newDriverData, error: createError } = await supabase
         .from('drivers')
@@ -49,7 +48,6 @@ export const profileService = {
 
       if (createError) throw new Error(createError.message);
       
-      // merge
       return {
         ...profileData,
         plate_number: newDriverData.plate_number,
@@ -88,7 +86,6 @@ export const profileService = {
     let profileData = null;
     let driverData = null;
 
-    // update profiles table if there are profile-specific fields
     const profileUpdates: any = {};
     if (updates.full_name !== undefined) profileUpdates.full_name = updates.full_name;
     if (updates.avatar_url !== undefined) profileUpdates.avatar_url = updates.avatar_url;
@@ -194,7 +191,6 @@ export const profileService = {
       updated_at: new Date().toISOString(),
     };
 
-    // clear location when going offline
     if (status === 'offline') {
       updateData.current_location = null;
     }

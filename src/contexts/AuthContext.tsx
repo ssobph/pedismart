@@ -1,18 +1,23 @@
 import { supabase } from '@/lib/supabase';
 import { profileService } from '@/services/profileService';
-import { Database } from '@/types/supabase';
+import { Database } from '@/types/database.types';
+import { DriverProfile } from '@/types/index';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Session, User } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
+type ProfileUnion = Profile | DriverProfile;
 
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
-  profile: Profile | null;
+  profile: ProfileUnion | null;
   isLoading: boolean;
   needsProfileSetup: boolean;
   createProfile: (fullName: string, role: 'passenger' | 'driver') => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -22,24 +27,38 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
   needsProfileSetup: false,
   createProfile: async () => {},
+  logout: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<ProfileUnion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+  const queryClient = useQueryClient();
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const fetchedProfile = await profileService.getProfile(userId);
-      if (fetchedProfile) {
-        setProfile(fetchedProfile);
-        setNeedsProfileSetup(false);
-      } else {
+      const basicProfile = await profileService.getProfile(userId);
+      if (!basicProfile) {
         setProfile(null);
         setNeedsProfileSetup(true);
+        return;
+      }
+
+      if (basicProfile.role === 'driver') {
+        const driverProfile = await profileService.getDriverProfile(userId);
+        if (driverProfile) {
+          setProfile(driverProfile);
+          setNeedsProfileSetup(false);
+        } else {
+          setProfile(null);
+          setNeedsProfileSetup(true);
+        }
+      } else {
+        setProfile(basicProfile);
+        setNeedsProfileSetup(false);
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -48,13 +67,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const clearAuthState = useCallback(() => {
+  const clearAuthState = useCallback(async () => {
+    // Clear React Query cache
+    queryClient.clear();
+
+    // Clear persisted query data from AsyncStorage
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const queryKeys = keys.filter(key => key.startsWith('REACT_QUERY'));
+      if (queryKeys.length > 0) {
+        await AsyncStorage.multiRemove(queryKeys);
+      }
+    } catch (error) {
+      console.error('Error clearing AsyncStorage:', error);
+    }
+
     setSession(null);
     setUser(null);
     setProfile(null);
     setNeedsProfileSetup(false);
     setIsLoading(false);
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -102,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
           }, 100);
         } else {
-          clearAuthState();
+          await clearAuthState();
         }
       }
     );
@@ -128,6 +161,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  const logout = useCallback(async () => {
+    try {
+      // Clear React Query cache first
+      queryClient.clear();
+
+      // Clear persisted query data from AsyncStorage
+      const keys = await AsyncStorage.getAllKeys();
+      const queryKeys = keys.filter(key => key.startsWith('REACT_QUERY'));
+      if (queryKeys.length > 0) {
+        await AsyncStorage.multiRemove(queryKeys);
+      }
+
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+        throw error;
+      }
+
+      // Clear local auth state
+      await clearAuthState();
+    } catch (error) {
+      console.error('Failed to logout:', error);
+      throw error;
+    }
+  }, [queryClient, clearAuthState]);
+
   const value = {
     session,
     user,
@@ -135,6 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     needsProfileSetup,
     createProfile,
+    logout,
   };
 
   return (

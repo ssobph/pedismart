@@ -1,9 +1,11 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { profileService } from '@/services/profileService';
-import { Database } from '@/types/supabase';
+import { Database } from '@/types/database.types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 type ProfileUpdate = Partial<Database['public']['Tables']['profiles']['Row']>;
+type DriverProfileUpdate = Partial<Database['public']['Tables']['drivers']['Row']>;
+type CombinedProfileUpdate = ProfileUpdate & DriverProfileUpdate;
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
@@ -11,20 +13,28 @@ export function useUpdateProfile() {
   const userId = user?.id;
 
   return useMutation({
-    mutationFn: (updates: ProfileUpdate) => {
+    mutationFn: async (updates: CombinedProfileUpdate) => {
       if (!userId) {
         throw new Error('User is not authenticated');
       }
+
+      const currentProfile = await profileService.getProfile(userId);
+      if (!currentProfile) {
+        throw new Error('Profile not found');
+      }
+
+      if (currentProfile.role === 'driver') {
+        return profileService.updateDriverProfile(userId, updates);
+      }
+      
       return profileService.updateProfile(userId, updates);
     },
     onSuccess: (updatedProfile) => {
-      // IF SUCCESSFUL, i-invalidate ang 'profile' query.
-      // TANSTACK PROFILE IS OLD NOW, REFERESH EVERYTHING RELATED TO 'useProfile'
       queryClient.invalidateQueries({ queryKey: ['profile', userId] });
       queryClient.setQueryData(['profile', userId], updatedProfile);
     },
     onError: (error) => {
-      // TODO: console.error("Error updating profile:", error);
-    }
+      console.error("Error updating profile:", error);
+    },
   });
 }
