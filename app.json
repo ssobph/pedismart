@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "pedismart2",
-    "slug": "pedismart2",
+    "name": "pedismart",
+    "slug": "pedismart",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "pedismart2",
+    "scheme": "pedismart",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -23,8 +23,11 @@
       "edgeToEdgeEnabled": false,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "package": "com.aidrecabrera.pedismart"
     },
     "web": {
       "bundler": "metro",
@@ -42,19 +45,19 @@
           "backgroundColor": "#ffffff"
         }
       ],
-        "expo-secure-store",
-        [
-          "@rnmapbox/maps",
-          {
-            "RNMapboxMapsDownloadToken": "${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}",
-            "android": {
-              "accessToken": "${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}"
-            },
-            "ios": {
-              "accessToken": "${EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}"
-            }
-          }
-        ]
+      "expo-secure-store",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsImpl": "maplibre"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Show current location on map."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
