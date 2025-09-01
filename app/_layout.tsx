@@ -64,7 +64,7 @@ function RootNavigator() {
       <ProfileSetupModal
         visible={!!session && needsProfileSetup && !isLoading}
         onComplete={() => {
-          // When profile is set up, refetch queries that depend on it.
+          // when profile is set up, refetch queries that depend on it.
           queryClient.invalidateQueries({ queryKey: ['profile'] });
           queryClient.invalidateQueries({ queryKey: ['activeTrip'] });
         }}
