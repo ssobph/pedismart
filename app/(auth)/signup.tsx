@@ -33,7 +33,7 @@ export default function SignupScreen() {
 
     try {
       const {
-        data: { session, user },
+        data: { session },
         error,
       } = await supabase.auth.signUp({
         email,
@@ -78,7 +78,7 @@ export default function SignupScreen() {
 
           <View style={styles.formContainer}>
             <ThemedText type="body" style={styles.subtitle}>
-              You're joining as a <Text style={{ fontWeight: 'bold' }}>{role || 'user'}</Text>.
+              You&apos;re joining as a <Text style={{ fontWeight: 'bold' }}>{role || 'user'}</Text>.
             </ThemedText>
 
             <TextInput 

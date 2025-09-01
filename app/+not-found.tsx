@@ -21,10 +21,10 @@ export default function NotFoundScreen() {
           
           <ThemedText type="title" style={styles.title}>Oops! Wrong Turn</ThemedText>
           <ThemedText style={styles.subtitle}>
-            Looks like you've taken a detour from your route.
+            Looks like you&apos;ve taken a detour from your route.
           </ThemedText>
           <ThemedText style={styles.description}>
-            This page doesn't exist in PediSmart. Let's get you back on track!
+            This page doesn&apos;t exist in PediSmart. Let&apos;s get you back on track!
           </ThemedText>
 
           <View style={styles.buttonContainer}>
