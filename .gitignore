@@ -22,9 +22,12 @@ expo-env.d.ts
 .metro-health-check*
 
 # debug
+*.dmc
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+
+docs/
 
 # macOS
 .DS_Store
