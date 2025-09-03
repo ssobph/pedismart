@@ -157,10 +157,13 @@ export function PassengerDiscoverScreen() {
         (() => {
           let lastRefetch = 0;
           return (payload: any) => {
-            const now = Date.now();
-            if (now - lastRefetch > 1000) {
-              lastRefetch = now;
-              refetch();
+            // Only refetch if the driver's status changed
+            if (payload.old.status !== payload.new.status) {
+              const now = Date.now();
+              if (now - lastRefetch > 100) {
+                lastRefetch = now;
+                refetch();
+              }
             }
           };
         })()
@@ -303,13 +306,13 @@ export function PassengerDiscoverScreen() {
           destinationLocation={destinationLocation}
           onPickupPress={() => {
             router.push({
-              pathname: '/passenger/location-selection',
+              pathname: '/passenger/locate',
               params: { mode: 'pickup', title: 'Choose Pickup Location' }
             });
           }}
           onDestinationPress={() => {
             router.push({
-              pathname: '/passenger/location-selection',
+              pathname: '/passenger/locate',
               params: { mode: 'destination', title: 'Choose Destination' }
             });
           }}

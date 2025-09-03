@@ -25,6 +25,7 @@ type NearbyDriver = {
   plate_number: string;
   distance_meters: number;
   current_location?: unknown;
+  average_rating?: number;
 };
 
 export default function ManualBookingRoute() {
@@ -451,7 +452,7 @@ export default function ManualBookingRoute() {
                   <View style={styles.statsRow}>
                     <View style={styles.stat}>
                       <FontAwesome5 name="star" size={12} color="#F39C12" />
-                      <Text style={styles.statText}>{ratingText}</Text>
+                      <Text style={styles.statText}>{driver.average_rating ? driver.average_rating.toFixed(1) : '—'}</Text>
                     </View>
                     <View style={styles.stat}>
                       <FontAwesome5 name="check-circle" size={12} color="#27AE60" />

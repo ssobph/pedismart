@@ -3,6 +3,7 @@ import { useLocation } from '@/contexts/LocationContext';
 import { Camera, LocationPuck, MapView, ShapeSource, SymbolLayer } from '@/lib/mapbox';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
@@ -41,12 +42,16 @@ export function LocationSelectionScreen({
     longitude: 120.9842,
   };
 
-  const handleMapPress = (event: any) => {
+  const handleMapPress = async (event: any) => {
     const { geometry } = event;
     if (!geometry || geometry.type !== 'Point') return;
     const [lng, lat] = geometry.coordinates as [number, number];
+    
+    const reverseGeocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    const address = reverseGeocode[0] ? `${reverseGeocode[0].street}, ${reverseGeocode[0].city}` : `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    
     const newLocation: LocationData = {
-      address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+      address,
       coordinates: [lng, lat],
     };
     setSelectedLocation(newLocation);
