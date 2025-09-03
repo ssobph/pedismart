@@ -47,6 +47,15 @@ export default function DriverTabLayout() {
           }}
         />
         <Tabs.Screen
+          name="queue"
+          options={{
+            title: 'Queue',
+            tabBarIcon: ({ color, size }) => (
+              <FontAwesome5 name="list-alt" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="rides"
           options={{
             title: 'My Rides',
