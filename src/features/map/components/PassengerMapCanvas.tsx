@@ -1,6 +1,6 @@
 import { Camera, DEFAULT_CAMERA_CONFIG, LocationPuck, MAP_STYLES, MapView, ShapeSource, SymbolLayer, USER_LOCATION_CONFIG } from '@/lib/mapbox';
-import { useRef } from 'react';
-import { StyleSheet } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 type FeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Point, { id: string; name: string; plateNumber?: string; distance?: number }>;
 
@@ -18,23 +18,33 @@ interface Props {
 }
 
 export function PassengerMapCanvas({ center, driversGeoJSON, onMapReady, assignedDriver }: Props) {
+  const [isReady, setIsReady] = useState(false);
   const mapRef = useRef<MapView>(null);
   const cameraRef = useRef<Camera>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 500); 
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <MapView
-      ref={mapRef}
-      style={StyleSheet.absoluteFillObject}
-      styleURL={MAP_STYLES.NAVIGATION}
-      zoomEnabled
-      scrollEnabled
-      pitchEnabled={false}
-      rotateEnabled={false}
-      scaleBarEnabled={false}
-      logoEnabled={false}
-      attributionEnabled={false}
-      onDidFinishLoadingMap={onMapReady}
-    >
+    <View style={StyleSheet.absoluteFillObject}>
+      {isReady && (
+        <MapView
+          style={StyleSheet.absoluteFillObject}
+          styleURL={MAP_STYLES.NAVIGATION}
+          zoomEnabled
+          scrollEnabled
+          pitchEnabled={false}
+          rotateEnabled={false}
+          scaleBarEnabled={false}
+          logoEnabled={false}
+          attributionEnabled={false}
+          onDidFinishLoadingMap={onMapReady}
+        >
       <Camera
         ref={cameraRef}
         zoomLevel={DEFAULT_CAMERA_CONFIG.zoomLevel}
@@ -121,6 +131,8 @@ export function PassengerMapCanvas({ center, driversGeoJSON, onMapReady, assigne
           />
         </ShapeSource>
       )}
-    </MapView>
+        </MapView>
+      )}
+    </View>
   );
 }

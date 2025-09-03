@@ -1,9 +1,10 @@
 import { LocationData, LocationInputContainer } from '@/components/ui/LocationInputContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/contexts/LocationContext';
+import { PassengerOfferModal } from '@/features/booking/components/PassengerOfferModal';
+import { usePassengerOfferSubscription } from '@/features/booking/hooks/usePassengerOfferSubscription';
 import { PassengerMapCanvas } from '@/features/map/components/PassengerMapCanvas';
 import { useNearbyDrivers } from '@/features/map/hooks/useNearbyDrivers';
-import { OfferModal } from '@/features/trip/components/OfferModal';
 import { useCurrentTrip } from '@/features/trip/hooks/useCurrentTrip';
 import { Camera, DEFAULT_CAMERA_CONFIG, MapView } from '@/lib/mapbox';
 import { supabase } from '@/lib/supabase';
@@ -425,12 +426,11 @@ export function PassengerDiscoverScreen() {
         )}
       </View>
 
-      <OfferModal
+      <PassengerOfferModal
         visible={showOfferModal}
-        trip={offeredTrip}
+        offer={offeredTrip}
         onAccept={handleAcceptOffer}
         onDecline={handleDeclineOffer}
-        timeoutSeconds={30}
       />
     </SafeAreaView>
   );

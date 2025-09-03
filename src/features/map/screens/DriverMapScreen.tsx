@@ -9,7 +9,7 @@ import { useRideRequestsSubscription } from '@/features/map/hooks/useRideRequest
 import { useDriverStats } from '@/features/profile/hooks/useDriverStats';
 import { RideRequestModal } from '@/features/trip/components/RideRequestModal';
 import { TripNavigationScreen } from '@/features/trip/screens/TripNavigationScreen';
-import { Camera, LocationPuck, MapView, ShapeSource, SymbolLayer } from '@/lib/mapbox';
+import { Camera, LocationPuck, MAP_STYLES, MapView, ShapeSource, SymbolLayer } from '@/lib/mapbox';
 import { bookingService } from '@/services/bookingService';
 import { RideRequest, tripService, TripWithDetails } from '@/services/tripService';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -26,7 +26,7 @@ import {
 } from 'react-native';
 
 export function DriverMapScreen() {
-  const mapRef = useRef<MapView>(null);
+  const [isReady, setIsReady] = useState(false);
   const { user } = useAuth();
   const { location } = useLocation();
   const { isOnline } = useDriverStatus();
@@ -47,13 +47,19 @@ export function DriverMapScreen() {
           if (trip) {
             setActiveTrip(trip);
           }
-        } catch (error) {
-          // Error checking active trip
-        }
+        } catch (error) { }
       }
     };
     checkActiveTrip();
   }, [user]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 500); 
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const currentLocation = location
     ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
@@ -119,12 +125,12 @@ export function DriverMapScreen() {
         user.id
       );
       const tripDetails = await tripService.getTripDetails(acceptedTrip.id);
-      
+
       setActiveTrip(tripDetails);
       setShowRideRequestModal(false);
       setRideRequest(null);
       setProcessedRequests(prev => new Set([...prev, request.trip_id]));
-      
+
       Alert.alert('Ride Accepted', 'Navigate to pickup location');
     } catch (error) {
       Alert.alert('Error', 'Failed to accept ride. Please try again.');
@@ -133,7 +139,7 @@ export function DriverMapScreen() {
 
   const handleDeclineRide = async (request: RideRequest) => {
     if (!user) return;
-    
+
     await tripService.rejectTrip(request.trip_id, user.id);
     setShowRideRequestModal(false);
     setRideRequest(null);
@@ -180,7 +186,7 @@ export function DriverMapScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Driver Dashboard</Text>
         <View style={styles.headerActions}>
@@ -199,7 +205,7 @@ export function DriverMapScreen() {
             )}
             <Text style={styles.statLabel}>Trips</Text>
           </View>
-          
+
           <View style={styles.statCard}>
             <FontAwesome5 name="star" size={24} color="#F39C12" />
             {statsLoading ? (
@@ -211,7 +217,7 @@ export function DriverMapScreen() {
             )}
             <Text style={styles.statLabel}>Rating</Text>
           </View>
-          
+
           <View style={styles.statCard}>
             <FontAwesome5 name="clock" size={24} color="#27AE60" />
             {statsLoading ? (
@@ -225,8 +231,13 @@ export function DriverMapScreen() {
       </View>
 
       <View style={styles.mapContainer}>
-        {location ? (
-          <MapView style={styles.map} logoEnabled={false} attributionEnabled={false}>
+        {location && isReady ? (
+          <MapView
+            style={styles.map}
+            styleURL={MAP_STYLES.NAVIGATION}
+            logoEnabled={false}
+            attributionEnabled={false}
+          >
             <Camera
               zoomLevel={15}
               centerCoordinate={[location.coords.longitude, location.coords.latitude]}
@@ -236,55 +247,55 @@ export function DriverMapScreen() {
 
             <LocationPuck visible pulsing={{ isEnabled: true, color: isOnline ? '#27AE60' : '#95A5A6', radius: 15 }} />
 
-            {isOnline && nearbyPassengers && (
-              <ShapeSource
-                id="passengers"
-                shape={{
-                  type: 'FeatureCollection',
-                  features: nearbyPassengers.map((p) => ({
-                    type: 'Feature' as const,
-                    geometry: {
-                      type: 'Point' as const,
-                      coordinates: p.pickup_location.coordinates,
-                    },
-                    properties: {
-                      tripId: p.trip_id,
-                      passengerId: p.passenger_id,
-                      name: p.passenger_name,
-                      address: p.pickup_address || 'Pickup location',
-                    },
-                  })),
-                }}
-                onPress={(e) => {
-                  const feature = e.features?.[0];
-                  if (!feature) return;
-                  const tripId = feature.properties?.tripId as number;
-                  const passengerId = feature.properties?.passengerId as string;
-                  if (tripId && passengerId) {
-                    handleOfferRide(tripId, passengerId);
-                  }
-                }}
-              >
-                <SymbolLayer
-                  id="passenger-symbols"
-                  style={{
-                    iconImage: 'marker-15',
-                    iconSize: 1.2,
-                    iconColor: '#F39C12',
-                    iconAllowOverlap: true,
-                    iconIgnorePlacement: true,
-                    textField: ['get', 'name'],
-                    textFont: ['Open Sans Regular', 'Arial Unicode MS Regular'],
-                    textSize: 12,
-                    textColor: '#2C3E50',
-                    textHaloColor: '#FFFFFF',
-                    textHaloWidth: 1,
-                    textOffset: [0, 2],
-                    textAnchor: 'top',
+            {(() => {
+              const features = isOnline && nearbyPassengers
+                ? nearbyPassengers.map((p) => ({
+                  type: 'Feature' as const,
+                  geometry: { type: 'Point' as const, coordinates: p.pickup_location.coordinates },
+                  properties: {
+                    tripId: p.trip_id,
+                    passengerId: p.passenger_id,
+                    name: p.passenger_name,
+                    address: p.pickup_address || 'Pickup location',
+                  },
+                }))
+                : [];
+
+              return (
+                <ShapeSource
+                  id="passengers"
+                  shape={{ type: 'FeatureCollection', features }}
+                  onPress={(e) => {
+                    const feature = e.features?.[0];
+                    if (!feature) return;
+                    const tripId = feature.properties?.tripId as number;
+                    const passengerId = feature.properties?.passengerId as string;
+                    if (tripId && passengerId) {
+                      handleOfferRide(tripId, passengerId);
+                    }
                   }}
-                />
-              </ShapeSource>
-            )}
+                >
+                  <SymbolLayer
+                    id="passenger-symbols"
+                    style={{
+                      iconImage: 'marker-15',
+                      iconSize: 1.2,
+                      iconColor: '#F39C12',
+                      iconAllowOverlap: true,
+                      iconIgnorePlacement: true,
+                      textField: ['get', 'name'],
+                      textFont: ['Open Sans Regular', 'Arial Unicode MS Regular'],
+                      textSize: 12,
+                      textColor: '#2C3E50',
+                      textHaloColor: '#FFFFFF',
+                      textHaloWidth: 1,
+                      textOffset: [0, 2],
+                      textAnchor: 'top',
+                    }}
+                  />
+                </ShapeSource>
+              );
+            })()}
           </MapView>
         ) : (
           <View style={styles.mapPlaceholder}>
