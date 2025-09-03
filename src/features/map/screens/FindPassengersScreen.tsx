@@ -69,7 +69,7 @@ export function FindPassengersScreen() {
       Alert.alert('Success', 'Ride accepted! Navigate to pickup location.', [
         {
           text: 'OK',
-          onPress: () => router.push('/(main)/driver/(tabs)/map'),
+          onPress: () => router.push('/(app)/driver/(tabs)/dashboard'),
         },
       ]);
       setShowConfirmModal(false);

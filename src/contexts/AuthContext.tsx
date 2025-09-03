@@ -41,20 +41,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchProfile = useCallback(async (userId: string) => {
     try {
       const basicProfile = await profileService.getProfile(userId);
+
       if (!basicProfile) {
-        setProfile(null);
-        setNeedsProfileSetup(true);
+        // new user who just signed up, their profile trigger might not have run yet.
+        // We set needsProfileSetup to true. If ghost session, the ProfileSetupModal
+        // will fail gracefully or the user will be logged out by other means.
+        const { data: { user } } = await supabase.auth.getUser();
+        // profile might not exist for a brand new user.
+        if (user) {
+           setProfile(null);
+           setNeedsProfileSetup(true);
+        } else {
+           // no user, no profile, we log out.
+           await supabase.auth.signOut();
+        }
         return;
       }
-
+      
       if (basicProfile.role === 'driver') {
         const driverProfile = await profileService.getDriverProfile(userId);
         if (driverProfile) {
           setProfile(driverProfile);
           setNeedsProfileSetup(false);
         } else {
-          setProfile(null);
-          setNeedsProfileSetup(true);
+          console.error(`Could not fetch or create driver-specific profile for ${userId}. Forcing sign-out.`);
+          await supabase.auth.signOut();
         }
       } else {
         setProfile(basicProfile);
@@ -62,16 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error);
-      setProfile(null);
-      setNeedsProfileSetup(true);
+      await supabase.auth.signOut();
     }
   }, []);
 
   const clearAuthState = useCallback(async () => {
-    // Clear React Query cache
     queryClient.clear();
 
-    // Clear persisted query data from AsyncStorage
     try {
       const keys = await AsyncStorage.getAllKeys();
       const queryKeys = keys.filter(key => key.startsWith('REACT_QUERY'));
@@ -94,7 +102,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         setIsLoading(true);
         
-        // Fetch the initial session from Supabase
         const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
@@ -104,7 +111,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
 
-        // If a session exists, fetch the associated profile
         if (currentSession?.user) {
           await fetchProfile(currentSession.user.id);
         } else {
@@ -120,27 +126,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initializeAuth();
 
-    // Set up a listener for auth state changes (login, logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        console.log('Auth state changed:', event);
-        
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
-        if (newSession?.user) {
-          // Add a small delay to ensure the profile is available after signup trigger
-          setTimeout(async () => {
-            await fetchProfile(newSession.user.id);
-            setIsLoading(false);
-          }, 100);
-        } else {
+        if (event === 'SIGNED_IN' && newSession?.user) {
+          await fetchProfile(newSession.user.id);
+          setIsLoading(false);
+        } else if (event === 'SIGNED_OUT') {
           await clearAuthState();
+        } else if (event === 'INITIAL_SESSION' && newSession?.user) {
+          await fetchProfile(newSession.user.id);
+          setIsLoading(false);
         }
       }
     );
 
-    // Clean up the subscription when the component unmounts
     return () => {
       subscription.unsubscribe();
     };
@@ -163,24 +165,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      // Clear React Query cache first
       queryClient.clear();
 
-      // Clear persisted query data from AsyncStorage
       const keys = await AsyncStorage.getAllKeys();
       const queryKeys = keys.filter(key => key.startsWith('REACT_QUERY'));
       if (queryKeys.length > 0) {
         await AsyncStorage.multiRemove(queryKeys);
       }
 
-      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Logout error:', error);
         throw error;
       }
 
-      // Clear local auth state
       await clearAuthState();
     } catch (error) {
       console.error('Failed to logout:', error);

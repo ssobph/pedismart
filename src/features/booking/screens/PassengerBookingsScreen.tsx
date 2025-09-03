@@ -46,7 +46,7 @@ export function PassengerBookingsScreen() {
           </ThemedText>
           <TouchableOpacity 
             style={[styles.bookButton, { backgroundColor: Colors[theme].primary }]}
-            onPress={() => router.push('/(main)/passenger/(tabs)/map')}
+            onPress={() => router.push('/(app)/passenger/manual-booking')}
           >
             <ThemedText style={styles.bookButtonText}>Book a Ride</ThemedText>
           </TouchableOpacity>

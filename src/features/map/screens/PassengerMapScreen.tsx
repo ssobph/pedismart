@@ -27,7 +27,7 @@ import {
 
 type Trip = Database['public']['Tables']['trips']['Row'];
 
-export function PassengerMapScreen() {
+export function PassengerDiscoverScreen() {
   const appStartRef = useRef<number>(Date.now());
 
   const mapRef = useRef<MapView>(null);

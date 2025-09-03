@@ -19,8 +19,8 @@ export default function EmptyState({ role }: EmptyStateProps) {
     : "You haven't completed any rides yet. Find a passenger to start earning!";
   const ctaText = isPassenger ? "Book a Ride" : "Find a Passenger";
   const ctaHref = isPassenger
-    ? "/(main)/passenger/(tabs)/map"
-    : "/(main)/driver/(tabs)/find-passengers";
+    ? "/(app)/passenger/(tabs)/discover"
+    : "/(app)/driver/(tabs)/find";
 
   return (
     <ThemedView style={styles.container}>

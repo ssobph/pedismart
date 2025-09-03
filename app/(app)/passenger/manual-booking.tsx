@@ -26,7 +26,7 @@ type NearbyDriver = {
   current_location?: unknown;
 };
 
-export default function ManualBooking() {
+export default function ManualBookingRoute() {
   const { user } = useAuth();
   const { location } = useLocation();
   const queryClient = useQueryClient();

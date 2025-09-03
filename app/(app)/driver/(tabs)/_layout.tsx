@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/Colors';
+import { DriverStatusProvider } from '@/contexts/DriverStatusContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { DriverStatusProvider } from '@/contexts/DriverStatusContext';
 
 export default function DriverTabLayout() {
   const theme = useColorScheme() ?? 'light';
@@ -29,7 +29,7 @@ export default function DriverTabLayout() {
           },
         }}>
         <Tabs.Screen
-          name="map"
+          name="dashboard"
           options={{
             title: 'Dashboard',
             tabBarIcon: ({ color, size }) => (
@@ -38,7 +38,7 @@ export default function DriverTabLayout() {
           }}
         />
         <Tabs.Screen
-          name="find-passengers"
+          name="find"
           options={{
             title: 'Find',
             tabBarIcon: ({ color, size }) => (
