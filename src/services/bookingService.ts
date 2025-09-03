@@ -2,6 +2,7 @@ import Config from '@/constants/Config';
 import { supabase } from '@/lib/supabase';
 import { Database, Json } from '@/types/database.types';
 import { Point } from 'geojson';
+import { profileService } from './profileService';
 
 type Trip = Database['public']['Tables']['trips']['Row'];
 type TripUpdate = Database['public']['Tables']['trips']['Update'];
@@ -39,7 +40,18 @@ export const bookingService = {
     const updates: TripUpdate = { status };
 
     if (status === 'accepted' && driverId) updates.driver_id = driverId;
-    if (status === 'in_progress') updates.started_at = new Date().toISOString();
+    if (status === 'in_progress') {
+      updates.started_at = new Date().toISOString();
+      // Automatically set driver status to 'on_trip' when trip starts
+      if (driverId) {
+        try {
+          await profileService.updateDriverStatus(driverId, 'on_trip');
+        } catch (error) {
+          console.error('Failed to update driver status to on_trip:', error);
+          // Log the error but don't stop the trip update process
+        }
+      }
+    }
     if (status === 'completed') updates.completed_at = new Date().toISOString();
     if (status === 'cancelled') updates.cancelled_at = new Date().toISOString();
 
@@ -85,6 +97,29 @@ export const bookingService = {
       `
       )
       .or(`passenger_id.eq.${userId},driver_id.eq.${userId}`)
+      .order('requested_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return data.map((trip) => ({
+      ...trip,
+      driver: trip.driver?.profile,
+    }));
+  },
+
+  getOfferHistory: async (passengerId: string) => {
+    const { data, error } = await supabase
+      .from('trips')
+      .select(
+        `
+        *,
+        driver:drivers!trips_driver_id_fkey(
+          profile:profiles(*)
+        )
+      `
+      )
+      .eq('passenger_id', passengerId)
+      .in('status', ['accepted', 'declined'])
       .order('requested_at', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -302,13 +337,14 @@ export const bookingService = {
     const updates = newOrder.map((waypointId, index) => ({
       id: waypointId,
       order_index: index + 1,
+      sequence_order: index + 1,
     }));
 
     // batch update waypoints
     for (const update of updates) {
       const { error } = await supabase
         .from('trip_waypoints')
-        .update({ order_index: update.order_index })
+        .update({ order_index: update.order_index, sequence_order: update.sequence_order })
         .eq('id', update.id);
 
       if (error) throw new Error(error.message);
