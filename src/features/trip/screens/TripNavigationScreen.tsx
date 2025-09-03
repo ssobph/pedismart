@@ -42,6 +42,7 @@ export function TripNavigationScreen({
   const [passengerNames, setPassengerNames] = useState<Record<string, string>>({});
   const [currentWaypointIndex, setCurrentWaypointIndex] = useState(0);
   const [routeRecalculating, setRouteRecalculating] = useState(false);
+  const lastRecalcRef = useRef<number>(0);
 
   const [rideRequest, setRideRequest] = useState<RideRequest | null>(null);
   const [showRideRequestModal, setShowRideRequestModal] = useState(false);
@@ -121,7 +122,8 @@ export function TripNavigationScreen({
           type: 'Point',
           coordinates: [currentCoords.longitude, currentCoords.latitude],
         },
-        waypoints
+        waypoints,
+        { traffic: true }
       );
 
       setMultiStopRoute(route);
@@ -136,6 +138,15 @@ export function TripNavigationScreen({
   useEffect(() => {
     fetchTripAndRecalculateRoute();
   }, [fetchTripAndRecalculateRoute]);
+
+  // Recalculate when driver's device location updates (debounced)
+  useEffect(() => {
+    if (!currentCoords || remainingWaypoints.length === 0) return;
+    const now = Date.now();
+    if (now - lastRecalcRef.current < 5000) return; // debounce 5s
+    lastRecalcRef.current = now;
+    fetchTripAndRecalculateRoute();
+  }, [currentCoords?.latitude, currentCoords?.longitude, remainingWaypoints.length, fetchTripAndRecalculateRoute]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -256,7 +267,11 @@ export function TripNavigationScreen({
   const getTripSummary = () => {
     const totalStops = remainingWaypoints.length;
     const completedStops = currentWaypointIndex;
-    return `${completedStops}/${totalStops + completedStops} stops completed`;
+    const etaMins = multiStopRoute ? Math.round(multiStopRoute.duration / 60) : null;
+    const kmLeft = multiStopRoute ? (multiStopRoute.distance / 1000).toFixed(1) : null;
+    const base = `${completedStops}/${totalStops + completedStops} stops completed`;
+    if (etaMins != null && kmLeft != null) return `${base} • ${etaMins} min • ${kmLeft} km`;
+    return base;
   };
 
   const getActionButton = () => {
@@ -337,6 +352,12 @@ export function TripNavigationScreen({
               {routeRecalculating ? 'updating' : tripStatus.replace('_', ' ')}
             </Text>
           </View>
+          {multiStopRoute && (
+            <View style={styles.etaPill}>
+              <FontAwesome5 name="clock" size={12} color="#2C3E50" />
+              <Text style={styles.etaText}>{Math.max(1, Math.round(multiStopRoute.duration / 60))} min</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -524,6 +545,21 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     alignItems: 'flex-end',
+  },
+  etaPill: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECF0F1',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  etaText: {
+    color: '#2C3E50',
+    fontSize: 12,
+    fontWeight: '600',
   },
   statusBadge: {
     backgroundColor: '#F39C12',

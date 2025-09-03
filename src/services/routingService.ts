@@ -1,7 +1,8 @@
+import Config from '@/constants/Config';
 import { Point } from 'geojson';
 
-const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
-const MAPBOX_DIRECTIONS_API = 'https://api.mapbox.com/directions/v5/mapbox/driving';
+const MAPBOX_ACCESS_TOKEN = Config.mapboxAccessToken || process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN || process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+const MAPBOX_BASE = 'https://api.mapbox.com/directions/v5/mapbox';
 
 export interface Waypoint {
   id: number;
@@ -22,7 +23,8 @@ export interface RouteResponse {
 export const routingService = {
   buildMultiStopRoute: async (
     driverLocation: Point,
-    waypoints: Waypoint[]
+    waypoints: Waypoint[],
+    options?: { traffic?: boolean }
   ): Promise<RouteResponse> => {
     if (!MAPBOX_ACCESS_TOKEN) {
       throw new Error('Mapbox access token is not configured.');
@@ -31,13 +33,14 @@ export const routingService = {
       return { polyline: '', duration: 0, distance: 0, orderedWaypoints: [] };
     }
 
-    // Mapbox expects coordinates in 'longitude,latitude' format
+    // coordinates in 'longitude,latitude'
     const coordinates = [
       driverLocation.coordinates.join(','),
       ...waypoints.map((wp) => wp.location.coordinates.join(',')),
     ].join(';');
 
-    const url = `${MAPBOX_DIRECTIONS_API}/${coordinates}?overview=full&steps=true&geometries=polyline6&access_token=${MAPBOX_ACCESS_TOKEN}`;
+    const profile = options?.traffic ? 'driving-traffic' : 'driving';
+    const url = `${MAPBOX_BASE}/${profile}/${coordinates}?overview=full&steps=true&geometries=polyline6&access_token=${MAPBOX_ACCESS_TOKEN}`;
 
     try {
       const response = await fetch(url);

@@ -15,7 +15,10 @@
         "NSLocationAlwaysUsageDescription": "PediSmart uses your location to update trips in real time.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.aidrecabrera.pedismart"
+      "bundleIdentifier": "com.aidrecabrera.pedismart",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -27,9 +30,14 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.aidrecabrera.pedismart"
+      "package": "com.aidrecabrera.pedismart",
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "bundler": "metro",
@@ -52,7 +60,7 @@
         "@rnmapbox/maps",
         {
           "RNMapboxMapsVersion": "11.13.4",
-          "RNMapboxMapsDownloadToken": "sk.eyJ1IjoiYWlkcmVjYWJyZXJhIiwiYSI6ImNtZjE4bmlmbzFmcGIyanF5YWdiYTJmdnUifQ.h2XFgioeWEw1oS2oMkX_7Q",
+          "RNMapboxMapsDownloadToken": "sk.eyJ1IjoiYWlkcmVjYWJyZXJhIiwiYSI6ImNtZjE4bmlmbzFmcGIyanF5YWdiYTJmdnUifQ.h2XFgioeWEw1oS2oMkX_7Q"
         }
       ],
       [
@@ -70,6 +78,9 @@
       "eas": {
         "projectId": "1cd40a86-9a23-447c-bb07-db8164b78bb9"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1cd40a86-9a23-447c-bb07-db8164b78bb9"
     }
   }
 }

@@ -4,13 +4,20 @@ import { StyleSheet } from 'react-native';
 
 type FeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Point, { id: string; name: string; plateNumber?: string; distance?: number }>;
 
+type AssignedDriver = {
+  id: string;
+  coordinate: [number, number]; // [lng, lat]
+  name?: string;
+};
+
 interface Props {
   center: [number, number]; // [lng, lat]
   driversGeoJSON: FeatureCollection;
   onMapReady?: () => void;
+  assignedDriver?: AssignedDriver | null;
 }
 
-export function PassengerMapCanvas({ center, driversGeoJSON, onMapReady }: Props) {
+export function PassengerMapCanvas({ center, driversGeoJSON, onMapReady, assignedDriver }: Props) {
   const mapRef = useRef<MapView>(null);
   const cameraRef = useRef<Camera>(null);
 
@@ -79,6 +86,41 @@ export function PassengerMapCanvas({ center, driversGeoJSON, onMapReady }: Props
           }}
         />
       </ShapeSource>
+
+      {assignedDriver && (
+        <ShapeSource
+          id="assigned-driver"
+          shape={{
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature' as const,
+                geometry: { type: 'Point' as const, coordinates: assignedDriver.coordinate },
+                properties: { id: assignedDriver.id, name: assignedDriver.name || 'Your Driver' },
+              },
+            ],
+          }}
+        >
+          <SymbolLayer
+            id="assigned-driver-symbol"
+            style={{
+              iconImage: 'car-15',
+              iconSize: 1.4,
+              iconColor: '#27AE60',
+              iconAllowOverlap: true,
+              iconIgnorePlacement: true,
+              textField: ['get', 'name'],
+              textFont: ['Open Sans Bold', 'Arial Unicode MS Bold'],
+              textSize: 12,
+              textColor: '#2C3E50',
+              textHaloColor: '#FFFFFF',
+              textHaloWidth: 1,
+              textOffset: [0, 1.8],
+              textAnchor: 'top',
+            }}
+          />
+        </ShapeSource>
+      )}
     </MapView>
   );
 }
