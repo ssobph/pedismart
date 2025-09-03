@@ -1,13 +1,14 @@
+import { useTripCapacity } from '@/features/trip/hooks/useTripCapacity';
 import { RideRequest } from '@/services/tripService';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -15,6 +16,7 @@ const { width } = Dimensions.get('window');
 interface RideRequestModalProps {
   visible: boolean;
   rideRequest: RideRequest | null;
+  currentTripId?: number | null;
   onAccept: (request: RideRequest) => void;
   onDecline: (request: RideRequest) => void;
   timeoutSeconds?: number;
@@ -23,11 +25,15 @@ interface RideRequestModalProps {
 export function RideRequestModal({
   visible,
   rideRequest,
+  currentTripId,
   onAccept,
   onDecline,
   timeoutSeconds = 30,
 }: RideRequestModalProps) {
   const [remainingTime, setRemainingTime] = useState(timeoutSeconds);
+  
+  // Get capacity information for the current trip
+  const { data: capacityInfo } = useTripCapacity(currentTripId || null);
 
   useEffect(() => {
     if (visible && rideRequest) {
@@ -150,6 +156,16 @@ export function RideRequestModal({
             </View>
           </View>
 
+          {/* Capacity Warning */}
+          {capacityInfo && !capacityInfo.canAdd && (
+            <View style={styles.warningContainer}>
+              <FontAwesome5 name="exclamation-triangle" size={16} color="#E74C3C" />
+              <Text style={styles.warningText}>
+                Vehicle at capacity ({capacityInfo.currentCount}/{capacityInfo.maxCapacity} passengers)
+              </Text>
+            </View>
+          )}
+
           <View style={styles.actions}>
             <TouchableOpacity 
               style={styles.declineButton} 
@@ -160,11 +176,17 @@ export function RideRequestModal({
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.acceptButton} 
+              style={[
+                styles.acceptButton,
+                capacityInfo && !capacityInfo.canAdd && styles.disabledButton
+              ]} 
               onPress={() => onAccept(rideRequest)}
+              disabled={!!(capacityInfo && !capacityInfo.canAdd)}
             >
               <FontAwesome5 name="check" size={18} color="white" />
-              <Text style={styles.acceptButtonText}>Accept</Text>
+              <Text style={styles.acceptButtonText}>
+                {capacityInfo && !capacityInfo.canAdd ? 'Vehicle Full' : 'Accept'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -320,5 +342,24 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FADBD8',
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 10,
+    gap: 8,
+  },
+  warningText: {
+    color: '#E74C3C',
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  disabledButton: {
+    backgroundColor: '#BDC3C7',
+    opacity: 0.6,
   },
 });

@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/contexts/LocationContext';
 import { useRideRequestsSubscription } from '@/features/map/hooks/useRideRequestsSubscription';
 import { RideRequestModal } from '@/features/trip/components/RideRequestModal';
+import { useTripCapacity } from '@/features/trip/hooks/useTripCapacity';
 import { Camera, LineLayer, LocationPuck, MapView, ShapeSource, SymbolLayer } from '@/lib/mapbox';
 import { bookingService } from '@/services/bookingService';
 import { RouteResponse, routingService, Waypoint } from '@/services/routingService';
@@ -45,6 +46,9 @@ export function TripNavigationScreen({
   const [rideRequest, setRideRequest] = useState<RideRequest | null>(null);
   const [showRideRequestModal, setShowRideRequestModal] = useState(false);
   const [processedRequests, setProcessedRequests] = useState<Set<number>>(new Set());
+
+  // Get capacity information for the current trip
+  const { data: capacityInfo } = useTripCapacity(trip.id);
 
   const currentCoords = useMemo(() => 
     location
@@ -428,6 +432,12 @@ export function TripNavigationScreen({
               {trip.profiles?.full_name || 'Passenger'}
             </Text>
             <Text style={styles.tripId}>Trip #{trip.id}</Text>
+            {capacityInfo && (
+              <Text style={styles.capacityInfo}>
+                {capacityInfo.currentCount}/{capacityInfo.maxCapacity} passengers
+                {!capacityInfo.canAdd && ' • Full'}
+              </Text>
+            )}
           </View>
           <TouchableOpacity style={styles.callButton}>
             <FontAwesome5 name="phone" size={18} color="#27AE60" />
@@ -472,6 +482,7 @@ export function TripNavigationScreen({
       <RideRequestModal
         visible={showRideRequestModal}
         rideRequest={rideRequest}
+        currentTripId={trip.id}
         onAccept={handleAcceptRideRequest}
         onDecline={handleDeclineRideRequest}
         timeoutSeconds={30}
@@ -606,6 +617,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#95A5A6',
     marginTop: 2,
+  },
+  capacityInfo: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    marginTop: 2,
+    fontWeight: '500',
   },
   callButton: {
     width: 44,
