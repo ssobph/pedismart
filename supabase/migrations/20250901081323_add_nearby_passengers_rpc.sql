@@ -14,7 +14,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 SECURITY DEFINER
-AS $$
+AS $
   SELECT
     t.id AS trip_id,
     t.passenger_id,
@@ -23,8 +23,8 @@ AS $$
     w.address AS pickup_address,
     t.requested_at,
     ST_Distance(
-      w.location, 
-      ST_Point(long, lat)::extensions.geometry
+      w.location,
+      ST_SetSRID(ST_MakePoint(long, lat), 4326)
     ) AS distance_meters
   FROM public.trips AS t
   JOIN public.profiles AS p ON t.passenger_id = p.id
@@ -34,10 +34,10 @@ AS $$
     w.type = 'pickup' AND
     ST_DWithin(
       w.location,
-      ST_Point(long, lat)::extensions.geometry,
+      ST_SetSRID(ST_MakePoint(long, lat), 4326),
       radius_meters
     )
   ORDER BY distance_meters ASC;
-$$;
+$;
 
 GRANT EXECUTE ON FUNCTION nearby_passengers TO authenticated;
