@@ -34,7 +34,7 @@ export const DRIVER_MARKER_STYLE = {
   textAnchor: 'top',
 };
 
-// Passenger location puck configuration
+// passenger location puck configuration
 export const USER_LOCATION_CONFIG = {
   visible: true,
   showsUserHeadingIndicator: true,

@@ -1,3 +1,4 @@
+import { haversineDistanceMeters } from '@/lib/geo';
 import { supabase } from '@/lib/supabase';
 import { Database } from '@/types/database.types';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -123,12 +124,7 @@ export const tripService = {
       if (!location || !location.coordinates) return null;
 
       const [passengerLong, passengerLat] = location.coordinates;
-      const distance = calculateDistance(
-        driverLat,
-        driverLong,
-        passengerLat,
-        passengerLong
-      );
+      const distance = haversineDistanceMeters([driverLong, driverLat], [passengerLong, passengerLat]);
 
       if (distance > radiusInMeters) return null;
 
@@ -312,12 +308,7 @@ export const tripService = {
                   const pickupWaypoint = fullTrip.trip_waypoints.find(w => w.type === 'pickup');
                   if (pickupWaypoint && pickupWaypoint.location) {
                     const coords = pickupWaypoint.location as any;
-                    const distance = calculateDistance(
-                      driverLocation.latitude,
-                      driverLocation.longitude,
-                      coords.coordinates[1],
-                      coords.coordinates[0]
-                    );
+                    const distance = haversineDistanceMeters([driverLocation.longitude, driverLocation.latitude], coords.coordinates);
                     
                     if (distance <= radiusInMeters) {
                       await processRideRequest(fullTrip);
@@ -347,12 +338,7 @@ export const tripService = {
         
         if (pickupWaypoint && pickupWaypoint.location) {
           const pickupCoords = pickupWaypoint.location as any;
-          const distance = calculateDistance(
-            driverLocation.latitude,
-            driverLocation.longitude,
-            pickupCoords.coordinates[1],
-            pickupCoords.coordinates[0]
-          );
+          const distance = haversineDistanceMeters([driverLocation.longitude, driverLocation.latitude], pickupCoords.coordinates);
           
           const rideRequest: RideRequest = {
             trip_id: trip.id,
@@ -435,25 +421,94 @@ export const tripService = {
     // Return unsubscribe function
     return () => clearInterval(intervalId);
   },
+  
+  // Get pending ride requests for a driver (trips with 'offered' status)
+  getPendingRideRequestsForDriver: async (driverId: string): Promise<RideRequest[]> => {
+    const { data, error } = await supabase
+      .from('trips')
+      .select(`
+        id,
+        passenger_id,
+        requested_at,
+        profiles!trips_passenger_id_fkey (
+          full_name
+        ),
+        trip_waypoints (
+          location,
+          address,
+          type
+        )
+      `)
+      .eq('driver_id', driverId)
+      .eq('status', 'offered')
+      .order('requested_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching pending ride requests:', error);
+      throw new Error(error.message);
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // Transform the data into RideRequest format
+    const rideRequests: RideRequest[] = data.map((trip: any) => {
+      const profile = Array.isArray(trip.profiles)
+        ? trip.profiles[0]
+        : trip.profiles;
+      
+      // Find pickup and dropoff waypoints
+      const pickupWaypoint = trip.trip_waypoints?.find((w: any) => w.type === 'pickup');
+      const dropoffWaypoint = trip.trip_waypoints?.find((w: any) => w.type === 'dropoff');
+      
+      return {
+        trip_id: trip.id,
+        passenger_id: trip.passenger_id,
+        passenger_name: profile?.full_name || 'Unknown Passenger',
+        pickup_location: pickupWaypoint?.location,
+        pickup_address: pickupWaypoint?.address || null,
+        dropoff_location: dropoffWaypoint?.location,
+        dropoff_address: dropoffWaypoint?.address || null,
+        requested_at: trip.requested_at,
+      } as RideRequest;
+    });
+
+    return rideRequests;
+  },
+
+  subscribeToPassengerOffers: (
+    passengerId: string,
+    onOffer: (trip: TripWithDetails) => void
+  ): (() => void) => {
+    const channel = supabase
+      .channel(`passenger-offers-${passengerId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'trips',
+          filter: `passenger_id=eq.${passengerId}`,
+        },
+        async (payload) => {
+          const newTrip = payload.new as Trip;
+          if (newTrip.status === 'offered') {
+            const tripDetails = await tripService.getTripDetails(newTrip.id);
+            if (tripDetails) {
+              onOffer(tripDetails);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (channel) {
+        channel.unsubscribe();
+      }
+    };
+  },
 };
 
-// Helper function to calculate distance between two points (Haversine formula)
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 6371e3; // Earth's radius in meters
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c; // Distance in meters
-}

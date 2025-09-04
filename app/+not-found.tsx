@@ -35,14 +35,14 @@ export default function NotFoundScreen() {
               </TouchableOpacity>
             </Link>
             
-            <Link href="/(main)/passenger/(tabs)/map" asChild>
+            <Link href="/(app)/passenger/(tabs)/discover" asChild>
               <TouchableOpacity style={styles.secondaryButton}>
                 <FontAwesome5 name="user" size={16} color="#4A90E2" style={styles.buttonIcon} />
                 <ThemedText style={styles.secondaryButtonText}>Passenger Dashboard</ThemedText>
               </TouchableOpacity>
             </Link>
             
-            <Link href="/(main)/driver/(tabs)/map" asChild>
+            <Link href="/(app)/driver/(tabs)/dashboard" asChild>
               <TouchableOpacity style={styles.secondaryButton}>
                 <FontAwesome5 name="car" size={16} color="#4A90E2" style={styles.buttonIcon} />
                 <ThemedText style={styles.secondaryButtonText}>Driver Dashboard</ThemedText>

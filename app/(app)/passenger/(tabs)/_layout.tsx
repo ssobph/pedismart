@@ -1,3 +1,4 @@
+// app/(app)/passenger/(tabs)/_layout.tsx
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -11,8 +12,7 @@ export default function PassengerTabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors[theme].primary,
-        tabBarInactiveTintColor: Colors[theme].placeholder, 
-
+        tabBarInactiveTintColor: Colors[theme].placeholder,
         tabBarStyle: {
           backgroundColor: Colors[theme].card,
           borderTopWidth: 1,
@@ -27,9 +27,9 @@ export default function PassengerTabLayout() {
         },
       }}>
       <Tabs.Screen
-        name="map"
+        name="discover"
         options={{
-          title: 'Find Ride',
+          title: 'Discover',
           tabBarIcon: ({ color, size }) => (
             <FontAwesome5 name="map-marked-alt" size={size} color={color} />
           ),
@@ -38,9 +38,18 @@ export default function PassengerTabLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: 'My Rides',
+          title: 'Rides',
           tabBarIcon: ({ color, size }) => (
             <FontAwesome5 name="list-alt" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color, size }) => (
+            <FontAwesome5 name="history" size={size} color={color} />
           ),
         }}
       />

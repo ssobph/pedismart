@@ -1,6 +1,8 @@
+import Config from '@/constants/Config';
 import { supabase } from '@/lib/supabase';
 import { Database, Json } from '@/types/database.types';
 import { Point } from 'geojson';
+import { profileService } from './profileService';
 
 type Trip = Database['public']['Tables']['trips']['Row'];
 type TripUpdate = Database['public']['Tables']['trips']['Update'];
@@ -18,7 +20,13 @@ export const bookingService = {
       p_dropoff_location: dropoffLocation as unknown as Json,
     });
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      // Handle the specific case where user already has an active trip
+      if (error.code === 'P0001' && error.message.includes('User already has an active trip')) {
+        throw new Error('You already have an active ride request. Please complete or cancel your current trip before requesting a new one.');
+      }
+      throw new Error(error.message);
+    }
     // RPC -> [], EXPECT a single new trip object
     if (!data || data.length === 0) throw new Error('Failed to create ride request.');
     return data[0] as Trip;
@@ -32,7 +40,18 @@ export const bookingService = {
     const updates: TripUpdate = { status };
 
     if (status === 'accepted' && driverId) updates.driver_id = driverId;
-    if (status === 'in_progress') updates.started_at = new Date().toISOString();
+    if (status === 'in_progress') {
+      updates.started_at = new Date().toISOString();
+      // Automatically set driver status to 'on_trip' when trip starts
+      if (driverId) {
+        try {
+          await profileService.updateDriverStatus(driverId, 'on_trip');
+        } catch (error) {
+          console.error('Failed to update driver status to on_trip:', error);
+          // Log the error but don't stop the trip update process
+        }
+      }
+    }
     if (status === 'completed') updates.completed_at = new Date().toISOString();
     if (status === 'cancelled') updates.cancelled_at = new Date().toISOString();
 
@@ -88,6 +107,29 @@ export const bookingService = {
     }));
   },
 
+  getOfferHistory: async (passengerId: string) => {
+    const { data, error } = await supabase
+      .from('trips')
+      .select(
+        `
+        *,
+        driver:drivers!trips_driver_id_fkey(
+          profile:profiles(*)
+        )
+      `
+      )
+      .eq('passenger_id', passengerId)
+      .in('status', ['accepted', 'declined'])
+      .order('requested_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return data.map((trip) => ({
+      ...trip,
+      driver: trip.driver?.profile,
+    }));
+  },
+
   // offered trip (driver initiates ride offer to passenger)
   createOfferedTrip: async (
     driverId: string,
@@ -95,6 +137,19 @@ export const bookingService = {
     pickupLocation: Point,
     dropoffLocation: Point
   ): Promise<Trip> => {
+    // First check if passenger already has an active trip
+    const { data: activeTrips, error: checkError } = await supabase
+      .from('trips')
+      .select('id')
+      .eq('passenger_id', passengerId)
+      .in('status', ['requested', 'accepted', 'in_progress', 'offered']);
+
+    if (checkError) throw new Error(checkError.message);
+
+    if (activeTrips && activeTrips.length > 0) {
+      throw new Error('Cannot create ride offer: Passenger already has an active trip. Please wait for their current trip to complete.');
+    }
+
     // create the trip with 'offered' status
     const { data: tripData, error: tripError } = await supabase
       .from('trips')
@@ -173,6 +228,22 @@ export const bookingService = {
     pickupLocation: Point,
     dropoffLocation: Point
   ): Promise<void> => {
+    // current passenger count to enforce maximum capacity of 6
+    const { data: currentPassengers, error: countError } = await supabase
+      .from('trip_passengers')
+      .select('id')
+      .eq('trip_id', tripId)
+      .not('status', 'eq', 'cancelled');
+
+    if (countError) throw new Error(countError.message);
+
+    const currentPassengerCount = currentPassengers?.length || 0;
+    const MAX_PASSENGERS = 6;
+
+    if (currentPassengerCount >= MAX_PASSENGERS) {
+      throw new Error(`Cannot add passenger: Maximum capacity of ${MAX_PASSENGERS} passengers reached`);
+    }
+
     // add the passenger to the trip_passengers table
     const { error: passengerError } = await supabase
       .from('trip_passengers')
@@ -233,6 +304,30 @@ export const bookingService = {
     }
   },
 
+  // Get current passenger count for a trip (excluding cancelled passengers)
+  getCurrentPassengerCount: async (tripId: number): Promise<number> => {
+    const { data, error } = await supabase
+      .from('trip_passengers')
+      .select('id')
+      .eq('trip_id', tripId)
+      .not('status', 'eq', 'cancelled');
+
+    if (error) throw new Error(error.message);
+    
+    return data?.length || 0;
+  },
+
+  // Check if trip has capacity for more passengers
+  canAddMorePassengers: async (tripId: number): Promise<{ canAdd: boolean; currentCount: number; maxCapacity: number }> => {
+    const currentCount = await bookingService.getCurrentPassengerCount(tripId);
+    
+    return {
+      canAdd: currentCount < Config.maxPassengersPerTrip,
+      currentCount,
+      maxCapacity: Config.maxPassengersPerTrip
+    };
+  },
+
   // update waypoints after route optimization
   resequenceWaypoints: async (
     tripId: number,
@@ -242,13 +337,14 @@ export const bookingService = {
     const updates = newOrder.map((waypointId, index) => ({
       id: waypointId,
       order_index: index + 1,
+      sequence_order: index + 1,
     }));
 
     // batch update waypoints
     for (const update of updates) {
       const { error } = await supabase
         .from('trip_waypoints')
-        .update({ order_index: update.order_index })
+        .update({ order_index: update.order_index, sequence_order: update.sequence_order })
         .eq('id', update.id);
 
       if (error) throw new Error(error.message);

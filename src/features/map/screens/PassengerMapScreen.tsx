@@ -1,12 +1,15 @@
 import { LocationData, LocationInputContainer } from '@/components/ui/LocationInputContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/contexts/LocationContext';
+import { PassengerOfferModal } from '@/features/booking/components/PassengerOfferModal';
+import { usePassengerOfferSubscription } from '@/features/booking/hooks/usePassengerOfferSubscription';
 import { PassengerMapCanvas } from '@/features/map/components/PassengerMapCanvas';
 import { useNearbyDrivers } from '@/features/map/hooks/useNearbyDrivers';
-import { OfferModal } from '@/features/trip/components/OfferModal';
+import { useCurrentTrip } from '@/features/trip/hooks/useCurrentTrip';
 import { Camera, DEFAULT_CAMERA_CONFIG, MapView } from '@/lib/mapbox';
 import { supabase } from '@/lib/supabase';
 import { bookingService } from '@/services/bookingService';
+import { profileService } from '@/services/profileService';
 import { Database } from '@/types/database.types';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,10 +27,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { AssignedDriverInfo } from '../components/AssignedDriverInfo';
 
 type Trip = Database['public']['Tables']['trips']['Row'];
 
-export function PassengerMapScreen() {
+export function PassengerDiscoverScreen() {
   const appStartRef = useRef<number>(Date.now());
 
   const mapRef = useRef<MapView>(null);
@@ -39,6 +43,8 @@ export function PassengerMapScreen() {
   const [pickupLocation, setPickupLocation] = useState<LocationData | undefined>();
   const [destinationLocation, setDestinationLocation] = useState<LocationData | undefined>();
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const { data: currentTrip } = useCurrentTrip();
+  const [assignedDriverProfile, setAssignedDriverProfile] = useState<any | null>(null);
 
   const currentLocation = location
     ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
@@ -85,6 +91,20 @@ export function PassengerMapScreen() {
       };
     }) || [],
   }), [nearbyDrivers]);
+
+  // load assigned driver profile for an active driver on a trip
+  useEffect(() => {
+    const driverId = (currentTrip as any)?.driver_id as string | undefined;
+    if (!driverId) {
+      setAssignedDriverProfile(null);
+      return;
+    }
+    let active = true;
+    profileService.getDriverProfile(driverId).then((prof) => {
+      if (active) setAssignedDriverProfile(prof);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [currentTrip?.driver_id]);
 
   useEffect(() => {
     const loadSavedLocations = async () => {
@@ -157,10 +177,13 @@ export function PassengerMapScreen() {
         (() => {
           let lastRefetch = 0;
           return (payload: any) => {
-            const now = Date.now();
-            if (now - lastRefetch > 1000) {
-              lastRefetch = now;
-              refetch();
+            // Only refetch if the driver's status changed
+            if (payload.old.status !== payload.new.status) {
+              const now = Date.now();
+              if (now - lastRefetch > 100) {
+                lastRefetch = now;
+                refetch();
+              }
             }
           };
         })()
@@ -176,15 +199,6 @@ export function PassengerMapScreen() {
     };
   }, [user, offeredTrip, currentLocation, refetch]);
 
-  useEffect(() => {
-    if (!currentLocation) return;
-
-    const interval = setInterval(() => {
-      refetch();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [currentLocation, refetch]);
 
   const handleAcceptOffer = async (trip: Trip) => {
     try {
@@ -303,13 +317,13 @@ export function PassengerMapScreen() {
           destinationLocation={destinationLocation}
           onPickupPress={() => {
             router.push({
-              pathname: '/passenger/location-selection',
+              pathname: '/passenger/locate',
               params: { mode: 'pickup', title: 'Choose Pickup Location' }
             });
           }}
           onDestinationPress={() => {
             router.push({
-              pathname: '/passenger/location-selection',
+              pathname: '/passenger/locate',
               params: { mode: 'destination', title: 'Choose Destination' }
             });
           }}
@@ -331,6 +345,11 @@ export function PassengerMapScreen() {
           <PassengerMapCanvas
             center={[location.coords.longitude, location.coords.latitude]}
             driversGeoJSON={driversGeoJSON as any}
+            assignedDriver={currentTrip?.driver_id && (currentTrip as any).driver_current_location?.coordinates ? {
+              id: currentTrip.driver_id as string,
+              coordinate: (currentTrip as any).driver_current_location.coordinates as [number, number],
+              name: assignedDriverProfile?.full_name,
+            } : undefined}
             onMapReady={onMapReady}
           />
         ) : null}
@@ -351,6 +370,16 @@ export function PassengerMapScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {currentTrip?.driver_id && (
+        <AssignedDriverInfo
+          style={{ position: 'absolute', bottom: 100, left: 20, right: 20 }}
+          name={assignedDriverProfile?.full_name}
+          avatarUrl={assignedDriverProfile?.avatar_url}
+          plateNumber={assignedDriverProfile?.plate_number}
+          vehicleType={assignedDriverProfile?.vehicle_details}
+        />
+      )}
 
       <View style={styles.infoCard}>
         <View style={styles.infoRow}>
@@ -397,12 +426,11 @@ export function PassengerMapScreen() {
         )}
       </View>
 
-      <OfferModal
+      <PassengerOfferModal
         visible={showOfferModal}
-        trip={offeredTrip}
+        offer={offeredTrip}
         onAccept={handleAcceptOffer}
         onDecline={handleDeclineOffer}
-        timeoutSeconds={30}
       />
     </SafeAreaView>
   );

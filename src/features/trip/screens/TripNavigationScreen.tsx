@@ -2,7 +2,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/contexts/LocationContext';
 import { useRideRequestsSubscription } from '@/features/map/hooks/useRideRequestsSubscription';
 import { RideRequestModal } from '@/features/trip/components/RideRequestModal';
-import { Camera, LineLayer, LocationPuck, MapView, ShapeSource, SymbolLayer } from '@/lib/mapbox';
+import { useTripCapacity } from '@/features/trip/hooks/useTripCapacity';
+import { haversineDistanceMeters, pointToLineDistanceMeters } from '@/lib/geo';
+import { Camera, LineLayer, LocationPuck, MAP_STYLES, MapView, ShapeSource, SymbolLayer } from '@/lib/mapbox';
 import { bookingService } from '@/services/bookingService';
 import { RouteResponse, routingService, Waypoint } from '@/services/routingService';
 import { RideRequest, tripService, TripWithDetails } from '@/services/tripService';
@@ -31,6 +33,12 @@ export function TripNavigationScreen({
   onTripComplete,
   onCancel 
 }: TripNavigationScreenProps) {
+  // Navigation flow overview:
+  // - We compute an optimized multi-stop route using Mapbox APIs via routingService
+  // - While trip status is 'accepted', we route to the nearest pickup only (shortest path to pickup)
+  // - Once in_progress, we optimize across remaining waypoints
+  // - We render the polyline and show the next maneuver text with distance
+  // - Off-route detection (distance to route > 40m twice) triggers a reroute
   const mapRef = useRef<MapView>(null);
   const { user } = useAuth();
   const { location } = useLocation();
@@ -41,10 +49,20 @@ export function TripNavigationScreen({
   const [passengerNames, setPassengerNames] = useState<Record<string, string>>({});
   const [currentWaypointIndex, setCurrentWaypointIndex] = useState(0);
   const [routeRecalculating, setRouteRecalculating] = useState(false);
+  const lastRecalcRef = useRef<number>(0);
+  const offRouteCounterRef = useRef<number>(0);
+  const lastStepIndexRef = useRef<number>(-1);
+
+  const [nextTurnText, setNextTurnText] = useState<string | null>(null);
+  const [nextTurnDistance, setNextTurnDistance] = useState<number | null>(null);
+  const [nextTurnCoord, setNextTurnCoord] = useState<[number, number] | null>(null);
 
   const [rideRequest, setRideRequest] = useState<RideRequest | null>(null);
   const [showRideRequestModal, setShowRideRequestModal] = useState(false);
   const [processedRequests, setProcessedRequests] = useState<Set<number>>(new Set());
+
+  // get capacity information for the current trip
+  const { data: capacityInfo } = useTripCapacity(trip.id);
 
   const currentCoords = useMemo(() => 
     location
@@ -103,7 +121,7 @@ export function TripNavigationScreen({
         return;
       }
 
-      const waypoints: Waypoint[] = remaining.map(wp => ({
+      let waypoints: Waypoint[] = remaining.map(wp => ({
         id: wp.id,
         passenger_id: wp.passenger_id || '',
         kind: (wp.kind || wp.type) as 'pickup' | 'dropoff',
@@ -112,16 +130,46 @@ export function TripNavigationScreen({
         address: wp.address,
       }));
 
-      const route = await routingService.buildMultiStopRoute(
+      // if trip is only accepted (not started), prioritize routing to nearest pickup only
+      if (tripStatus === 'accepted') {
+        const pickups = waypoints.filter(w => w.kind === 'pickup');
+        if (pickups.length > 0) {
+          // choose nearest pickup to current location
+          const here: [number, number] = [currentCoords.longitude, currentCoords.latitude];
+          pickups.sort((a, b) =>
+            haversineDistanceMeters(here, a.location.coordinates as [number, number]) -
+            haversineDistanceMeters(here, b.location.coordinates as [number, number])
+          );
+          waypoints = [pickups[0]];
+        }
+      }
+
+      const route = await routingService.optimizeRoute(
         {
           type: 'Point',
           coordinates: [currentCoords.longitude, currentCoords.latitude],
         },
-        waypoints
+        waypoints,
+        { traffic: true }
       );
 
-      setMultiStopRoute(route);
-      setRemainingWaypoints(route.orderedWaypoints);
+      // persist new optimized order if it changed
+      const currentIds = waypoints.map(w => w.id);
+      const optimizedIds = route.orderedWaypoints.map(w => w.id);
+      const hasOrderChanged = currentIds.length === optimizedIds.length && currentIds.some((id, i) => id !== optimizedIds[i]);
+
+      if (hasOrderChanged) {
+        try {
+          await bookingService.resequenceWaypoints(trip.id, optimizedIds);
+        } catch (e) {
+          // non-blocking: log but continue to update UI
+          console.warn('Failed to persist optimized waypoint order:', e);
+        }
+      }
+
+  setMultiStopRoute(route);
+  setRemainingWaypoints(route.orderedWaypoints);
+  lastStepIndexRef.current = -1; // reset step progress on new route
     } catch (error) {
       console.error('Error recalculating route:', error);
     } finally {
@@ -133,6 +181,15 @@ export function TripNavigationScreen({
     fetchTripAndRecalculateRoute();
   }, [fetchTripAndRecalculateRoute]);
 
+  // recalculate when driver's device location updates (debounced)
+  useEffect(() => {
+    if (!currentCoords || remainingWaypoints.length === 0) return;
+    const now = Date.now();
+    if (now - lastRecalcRef.current < 5000) return; 
+    lastRecalcRef.current = now;
+    fetchTripAndRecalculateRoute();
+  }, [currentCoords?.latitude, currentCoords?.longitude, remainingWaypoints.length, fetchTripAndRecalculateRoute]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (currentCoords && remainingWaypoints.length > 0) {
@@ -142,6 +199,92 @@ export function TripNavigationScreen({
 
     return () => clearInterval(interval);
   }, [fetchTripAndRecalculateRoute, currentCoords, remainingWaypoints.length]);
+
+  // determine next turn instruction and detect off-route
+  useEffect(() => {
+    if (!multiStopRoute || !currentCoords) return;
+    const here: [number, number] = [currentCoords.longitude, currentCoords.latitude];
+
+    // off-route detection via distance to route polyline
+    if (multiStopRoute.coordinates && multiStopRoute.coordinates.length > 1) {
+      const d = pointToLineDistanceMeters(here, multiStopRoute.coordinates as [number, number][]);
+      if (d > 40) {
+        offRouteCounterRef.current += 1;
+        if (offRouteCounterRef.current >= 2 && !routeRecalculating) {
+          lastRecalcRef.current = 0; // bypass debounce
+          fetchTripAndRecalculateRoute();
+          offRouteCounterRef.current = 0;
+        }
+      } else {
+        offRouteCounterRef.current = 0;
+      }
+    }
+
+    // compute next step
+    const flatSteps: Array<{ idx: number; step: NonNullable<NonNullable<RouteResponse['legs']>[number]['steps']>[number] }> = [];
+    if (multiStopRoute.legs) {
+      let idx = 0;
+      for (const leg of multiStopRoute.legs) {
+        for (const s of leg.steps) {
+          flatSteps.push({ idx, step: s });
+          idx += 1;
+        }
+      }
+    }
+
+    if (flatSteps.length === 0) {
+      setNextTurnText(null);
+      setNextTurnDistance(null);
+      setNextTurnCoord(null);
+      return;
+    }
+
+    // prefer first step ahead of lastStepIndex; otherwise nearest by distance
+    let candidate = flatSteps.find(fs => fs.idx > lastStepIndexRef.current) || flatSteps[flatSteps.length - 1];
+    // if far from this candidate, pick the nearest maneuver point
+    let minD = Infinity;
+    let nearest = candidate;
+    for (const fs of flatSteps) {
+      const m = fs.step.maneuver?.location as [number, number] | undefined;
+      if (!m) continue;
+      const dist = haversineDistanceMeters(here, m);
+      if (dist < minD) {
+        minD = dist;
+        nearest = fs;
+      }
+    }
+
+    candidate = nearest;
+    const maneuver = candidate.step.maneuver;
+    const instruction = maneuver.instruction || buildInstruction(candidate.step.maneuver?.type, candidate.step.maneuver?.modifier, candidate.step.name);
+    const coord = maneuver.location as [number, number] | undefined;
+    const distToManeuver = coord ? haversineDistanceMeters(here, coord) : null;
+
+    setNextTurnText(instruction || null);
+    setNextTurnDistance(distToManeuver);
+    setNextTurnCoord(coord || null);
+
+    // advance step index if we're very close to the maneuver point
+    if (distToManeuver != null && distToManeuver < 15 && candidate.idx > lastStepIndexRef.current) {
+      lastStepIndexRef.current = candidate.idx;
+    }
+  }, [multiStopRoute, currentCoords, routeRecalculating, fetchTripAndRecalculateRoute]);
+
+  const buildInstruction = (
+    type?: string,
+    modifier?: string,
+    roadName?: string
+  ): string => {
+    if (!type) return roadName ? `Continue on ${roadName}` : 'Continue';
+    const prettyType = type.replace(/_/g, ' ');
+    if (modifier) {
+      const prettyMod = modifier.replace(/_/g, ' ');
+      return `${capitalize(prettyType)} ${prettyMod}${roadName ? ` onto ${roadName}` : ''}`;
+    }
+    return `${capitalize(prettyType)}${roadName ? ` onto ${roadName}` : ''}`;
+  };
+
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   const handleWaypointComplete = async (waypoint: Waypoint) => {
     if (!user || isLoading) return;
@@ -235,7 +378,7 @@ export function TripNavigationScreen({
       setRideRequest(null);
       setProcessedRequests(prev => new Set([...prev, request.trip_id]));
     } catch (error) {
-      // Don't show error to user for decline failures
+      // dont show error to user for decline failures
     }
   };
 
@@ -252,7 +395,11 @@ export function TripNavigationScreen({
   const getTripSummary = () => {
     const totalStops = remainingWaypoints.length;
     const completedStops = currentWaypointIndex;
-    return `${completedStops}/${totalStops + completedStops} stops completed`;
+    const etaMins = multiStopRoute ? Math.round(multiStopRoute.duration / 60) : null;
+    const kmLeft = multiStopRoute ? (multiStopRoute.distance / 1000).toFixed(1) : null;
+    const base = `${completedStops}/${totalStops + completedStops} stops completed`;
+    if (etaMins != null && kmLeft != null) return `${base} • ${etaMins} min • ${kmLeft} km`;
+    return base;
   };
 
   const getActionButton = () => {
@@ -333,12 +480,23 @@ export function TripNavigationScreen({
               {routeRecalculating ? 'updating' : tripStatus.replace('_', ' ')}
             </Text>
           </View>
+          {multiStopRoute && (
+            <View style={styles.etaPill}>
+              <FontAwesome5 name="clock" size={12} color="#2C3E50" />
+              <Text style={styles.etaText}>{Math.max(1, Math.round(multiStopRoute.duration / 60))} min</Text>
+            </View>
+          )}
         </View>
       </View>
 
       <View style={styles.mapContainer}>
         {currentCoords ? (
-          <MapView style={styles.map} logoEnabled={false} attributionEnabled={false}>
+          <MapView
+            style={styles.map}
+            styleURL={MAP_STYLES.NAVIGATION}
+            logoEnabled={false}
+            attributionEnabled={false}
+          >
             <Camera
               zoomLevel={14}
               centerCoordinate={[currentCoords.longitude, currentCoords.latitude]}
@@ -394,7 +552,12 @@ export function TripNavigationScreen({
                   type: 'Feature',
                   geometry: {
                     type: 'LineString',
-                    coordinates: polyline.decode(multiStopRoute.polyline).map((coords: number[]) => [coords[1], coords[0]]),
+                    // prefer coordinates from geojson; fallback to polyline6 decode 
+                    coordinates: multiStopRoute.coordinates
+                      ? multiStopRoute.coordinates
+                      : polyline
+                          .decode(multiStopRoute.polyline || '', 6)
+                          .map((coords: number[]) => [coords[1], coords[0]]),
                   },
                   properties: {},
                 }}
@@ -409,6 +572,30 @@ export function TripNavigationScreen({
                 />
               </ShapeSource>
             )}
+
+            {nextTurnCoord && (
+              <ShapeSource
+                id="next-turn"
+                shape={{
+                  type: 'Feature',
+                  geometry: { type: 'Point', coordinates: nextTurnCoord },
+                  properties: {
+                    label: 'Next turn',
+                  },
+                }}
+              >
+                <SymbolLayer
+                  id="next-turn-symbol"
+                  style={{
+                    iconImage: 'marker-15',
+                    iconColor: '#F39C12',
+                    iconSize: 1.2,
+                    iconAllowOverlap: true,
+                    iconIgnorePlacement: true,
+                  }}
+                />
+              </ShapeSource>
+            )}
           </MapView>
         ) : (
           <View style={styles.mapPlaceholder}>
@@ -417,6 +604,20 @@ export function TripNavigationScreen({
           </View>
         )}
       </View>
+
+      {nextTurnText && (
+        <View style={styles.navInstructionBar}>
+          <FontAwesome5 name="location-arrow" size={14} color="#2C3E50" />
+          <Text style={styles.navInstructionText} numberOfLines={2}>
+            {nextTurnText}
+          </Text>
+          {nextTurnDistance != null && (
+            <Text style={styles.navInstructionDistance}>
+              {nextTurnDistance < 1000 ? `${Math.max(5, Math.round(nextTurnDistance))} m` : `${(nextTurnDistance / 1000).toFixed(1)} km`}
+            </Text>
+          )}
+        </View>
+      )}
 
       <View style={styles.tripInfoCard}>
         <View style={styles.passengerInfo}>
@@ -428,6 +629,12 @@ export function TripNavigationScreen({
               {trip.profiles?.full_name || 'Passenger'}
             </Text>
             <Text style={styles.tripId}>Trip #{trip.id}</Text>
+            {capacityInfo && (
+              <Text style={styles.capacityInfo}>
+                {capacityInfo.currentCount}/{capacityInfo.maxCapacity} passengers
+                {!capacityInfo.canAdd && ' • Full'}
+              </Text>
+            )}
           </View>
           <TouchableOpacity style={styles.callButton}>
             <FontAwesome5 name="phone" size={18} color="#27AE60" />
@@ -472,6 +679,7 @@ export function TripNavigationScreen({
       <RideRequestModal
         visible={showRideRequestModal}
         rideRequest={rideRequest}
+        currentTripId={trip.id}
         onAccept={handleAcceptRideRequest}
         onDecline={handleDeclineRideRequest}
         timeoutSeconds={30}
@@ -513,6 +721,21 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     alignItems: 'flex-end',
+  },
+  etaPill: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECF0F1',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  etaText: {
+    color: '#2C3E50',
+    fontSize: 12,
+    fontWeight: '600',
   },
   statusBadge: {
     backgroundColor: '#F39C12',
@@ -607,6 +830,12 @@ const styles = StyleSheet.create({
     color: '#95A5A6',
     marginTop: 2,
   },
+  capacityInfo: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    marginTop: 2,
+    fontWeight: '500',
+  },
   callButton: {
     width: 44,
     height: 44,
@@ -678,6 +907,35 @@ const styles = StyleSheet.create({
   },
   dropoffButton: {
     backgroundColor: '#E74C3C',
+  },
+  navInstructionBar: {
+    position: 'absolute',
+    top: 70,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  navInstructionText: {
+    flex: 1,
+    color: '#2C3E50',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  navInstructionDistance: {
+    color: '#2C3E50',
+    fontSize: 12,
+    fontWeight: '600',
   },
   waypointMarker: {
     width: 32,

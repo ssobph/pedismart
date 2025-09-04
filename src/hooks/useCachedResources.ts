@@ -11,8 +11,7 @@ export default function useCachedResources() {
 
   const [fontsLoaded, fontError] = useFonts({
     ...FontAwesome5.font,
-    // TODO: UPDATE FONT ASK JASTINE
-    // 'SpaceMono': require('../assets/fonts/SpaceMono-Regular.ttf'),
+    'SpaceMono': require('../../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
   useEffect(() => {

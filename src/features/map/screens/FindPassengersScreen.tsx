@@ -36,18 +36,16 @@ export function FindPassengersScreen() {
   const [pendingTripId, setPendingTripId] = useState<number | null>(null);
   const [passengerRatings, setPassengerRatings] = useState<Map<string, PassengerRating>>(new Map());
 
-  // Get current location for fetching nearby passengers
-  const currentLocation = location
-    ? { latitude: location.coords.latitude, longitude: location.coords.longitude }
-    : null;
-
-  // Fetch nearby passengers
   const { 
     data: nearbyPassengers, 
     isLoading: passengersLoading
-  } = useNearbyPassengers(isOnline ? currentLocation : null, 5000);
+  } = useNearbyPassengers(
+    isOnline && location 
+      ? { latitude: location.coords.latitude, longitude: location.coords.longitude } 
+      : null, 
+    5000
+  );
 
-  // Fetch passenger ratings when passengers are loaded
   useEffect(() => {
     const fetchRatings = async () => {
       if (nearbyPassengers && nearbyPassengers.length > 0) {
@@ -59,7 +57,6 @@ export function FindPassengersScreen() {
     fetchRatings();
   }, [nearbyPassengers]);
 
-  // Mutation for accepting ride
   const acceptRideMutation = useMutation({
     mutationFn: async (tripId: number) => {
       if (!user) throw new Error('User not authenticated');
@@ -69,7 +66,7 @@ export function FindPassengersScreen() {
       Alert.alert('Success', 'Ride accepted! Navigate to pickup location.', [
         {
           text: 'OK',
-          onPress: () => router.push('/(main)/driver/(tabs)/map'),
+          onPress: () => router.push('/(app)/driver/(tabs)/dashboard'),
         },
       ]);
       setShowConfirmModal(false);
@@ -83,7 +80,6 @@ export function FindPassengersScreen() {
     },
   });
 
-  // Calculate metrics for summary cards
   const availableCount = nearbyPassengers?.length || 0;
   
   const averageETA = nearbyPassengers && nearbyPassengers.length > 0
@@ -100,7 +96,6 @@ export function FindPassengersScreen() {
       }, 0) / nearbyPassengers.length
     : 0;
 
-  // Handlers
   const handlePassengerSelect = (passenger: PassengerSeekingRide) => {
     setSelectedPassenger(passenger);
     setShowConfirmModal(true);
@@ -118,13 +113,11 @@ export function FindPassengersScreen() {
     setSelectedPassenger(null);
   };
 
-  // Calculate ETA for a passenger
   const calculateETA = (distanceMeters: number | undefined): number => {
     if (!distanceMeters) return 0;
     return Math.ceil(distanceMeters / 500); // 500 meters per minute
   };
 
-  // Loading state
   if (statusLoading || (isOnline && passengersLoading && !nearbyPassengers)) {
     return (
       <SafeAreaView style={styles.container}>
@@ -141,13 +134,11 @@ export function FindPassengersScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Find Passengers</Text>
         <AvailabilityToggle variant="default" size="small" />
       </View>
 
-      {/* Summary Metrics */}
       <View style={styles.statsContainer}>
         <View style={styles.statsRow}>
           <SummaryCard
@@ -171,7 +162,6 @@ export function FindPassengersScreen() {
         </View>
       </View>
 
-      {/* Passenger List */}
       <ScrollView style={styles.passengersList} showsVerticalScrollIndicator={false}>
         {!isOnline ? (
           <View style={styles.emptyState}>
@@ -220,7 +210,6 @@ export function FindPassengersScreen() {
         )}
       </ScrollView>
 
-      {/* Confirmation Modal */}
       <Modal
         animationType="slide"
         transparent={true}

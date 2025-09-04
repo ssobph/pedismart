@@ -4,12 +4,13 @@ import { spacing } from '@/constants/StyleGuide';
 import { supabase } from '@/lib/supabase';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function SignupScreen() {
   const { selectedRole } = useLocalSearchParams<{ selectedRole: 'passenger' | 'driver' }>();
+  const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,9 +49,14 @@ export default function SignupScreen() {
         Alert.alert('Sign Up Error', error.message);
       } else {
         if (!session) {
-          Alert.alert('Please check your inbox for email verification!');
+          Alert.alert(
+            'Check your email',
+            'We have sent you an email to verify your account. Please click the link to continue.'
+          );
+          router.replace('/(auth)/login'); // Redirect to login after showing the alert
         } else {
           Alert.alert('Success!', 'Account created successfully!');
+          // No need to navigate here, the root layout's useEffect will handle it.
         }
       }
     } catch (unexpectedError) {

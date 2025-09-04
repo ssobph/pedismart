@@ -127,7 +127,7 @@ export function RideHistoryCard({ ride }: RideHistoryCardProps) {
               const rateeId = ride.profiles?.id;
               if (rateeId) {
                 router.push({
-                  pathname: '/(main)/passenger/rating',
+                  pathname: '/(app)/passenger/rating',
                   params: { tripId: ride.id.toString(), rateeId: rateeId },
                 });
               }

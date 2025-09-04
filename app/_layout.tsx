@@ -45,18 +45,26 @@ function RootNavigator() {
   const inAuthGroup = segments[0] === '(auth)';
 
   useEffect(() => {
-    if (isLoading) return;
-
-    if (!session && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (session && profile && !needsProfileSetup && inAuthGroup) {
-      if (profile.role === 'driver') {
-        router.replace('/(main)/driver/(tabs)/map');
-      } else {
-        router.replace('/(main)/passenger/(tabs)/map');
-      }
+    if (isLoading) {
+      return;
     }
-  }, [session, profile, isLoading, needsProfileSetup, inAuthGroup, segments, router]);
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (session && profile && inAuthGroup) {
+      if (profile.role === 'driver') {
+        router.replace('/driver/find');
+      } else if (profile.role === 'passenger') {
+        router.replace('/passenger/profile');
+      }
+    } else if (!session) {
+      // not signed in, redirect to the login page.
+      router.replace('/login');
+    }
+    // signed in and not in the auth group, do nothing.
+    // allow them to navigate freely within the app.
+  }, [session, profile, isLoading, segments]);
+
 
   return (
     <>

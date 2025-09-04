@@ -18,7 +18,20 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   new_trip_id bigint;
+  active_trip_count integer;
 BEGIN
+  -- Check for existing active trips (requested, accepted, or in_progress)
+  SELECT COUNT(*) INTO active_trip_count
+  FROM public.trips
+  WHERE passenger_id = p_passenger_id
+    AND status IN ('requested', 'accepted', 'in_progress');
+
+  -- If there's an active trip, raise an exception
+  IF active_trip_count > 0 THEN
+    RAISE EXCEPTION 'Cannot create ride request: User already has an active trip'
+      USING ERRCODE = 'P0001';
+  END IF;
+
   INSERT INTO public.trips (passenger_id, status)
   VALUES (p_passenger_id, 'requested')
   RETURNING public.trips.id INTO new_trip_id;

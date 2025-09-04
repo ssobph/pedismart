@@ -12,6 +12,7 @@ import { LocationInputContainer } from '@/components/ui/LocationInputContainer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/contexts/LocationContext';
 import { useNearbyDrivers } from '@/features/map/hooks/useNearbyDrivers';
+import { useCurrentTrip } from '@/features/trip/hooks/useCurrentTrip';
 import { supabase } from '@/lib/supabase';
 import { bookingService } from '@/services/bookingService';
 import { ratingService } from '@/services/ratingService';
@@ -24,12 +25,14 @@ type NearbyDriver = {
   plate_number: string;
   distance_meters: number;
   current_location?: unknown;
+  average_rating?: number;
 };
 
-export default function ManualBooking() {
+export default function ManualBookingRoute() {
   const { user } = useAuth();
   const { location } = useLocation();
   const queryClient = useQueryClient();
+  const { data: currentTrip, isLoading: currentTripLoading } = useCurrentTrip();
 
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [createdTripId, setCreatedTripId] = useState<number | null>(null);
@@ -209,6 +212,20 @@ export default function ManualBooking() {
 
   const handleDriverSelect = (driverId: string) => {
     if (isRequesting) return;
+
+    // Check if user already has an active trip
+    if (currentTrip) {
+      Alert.alert(
+        'Active Trip Found',
+        'You already have an active ride request. Please complete or cancel your current trip before requesting a new one.',
+        [
+          { text: 'View Current Trip', onPress: () => router.back() },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
     if (!pickup) {
       Alert.alert('Pickup Required', 'We could not get your current location yet.');
       return;
@@ -216,7 +233,7 @@ export default function ManualBooking() {
     if (!destination) {
       Alert.alert('Destination Required', 'Please set a destination before requesting.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Set Destination', onPress: () => router.push({ pathname: '/passenger/location-selection', params: { mode: 'destination', title: 'Choose Destination' } }) },
+        { text: 'Set Destination', onPress: () => router.push({ pathname: '/passenger/locate', params: { mode: 'destination', title: 'Choose Destination' } }) },
       ]);
       return;
     }
@@ -277,16 +294,36 @@ export default function ManualBooking() {
           pickupLocation={pickup || undefined}
           destinationLocation={destination || undefined}
           onPickupPress={() => router.push({
-            pathname: '/passenger/location-selection',
+            pathname: '/passenger/locate',
             params: { mode: 'pickup', title: 'Choose Pickup Location' }
           })}
           onDestinationPress={() => router.push({
-            pathname: '/passenger/location-selection',
+            pathname: '/passenger/locate',
             params: { mode: 'destination', title: 'Choose Destination' }
           })}
           showCurrentLocationAsPickup={true}
         />
       </View>
+
+      {currentTrip && (
+        <View style={styles.activeTripNotice}>
+          <View style={styles.activeTripContent}>
+            <FontAwesome5 name="exclamation-triangle" size={20} color="#856404" />
+            <View style={styles.activeTripTextContainer}>
+              <Text style={styles.activeTripTitle}>Active Trip Found</Text>
+              <Text style={styles.activeTripMessage}>
+                You have an active ride request. Complete or cancel it before booking a new ride.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.viewTripButton}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.viewTripButtonText}>View Trip</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {isRequesting && selectedDriverId && (
         <View style={styles.requestStatus}>
@@ -415,7 +452,7 @@ export default function ManualBooking() {
                   <View style={styles.statsRow}>
                     <View style={styles.stat}>
                       <FontAwesome5 name="star" size={12} color="#F39C12" />
-                      <Text style={styles.statText}>{ratingText}</Text>
+                      <Text style={styles.statText}>{driver.average_rating ? driver.average_rating.toFixed(1) : '—'}</Text>
                     </View>
                     <View style={styles.stat}>
                       <FontAwesome5 name="check-circle" size={12} color="#27AE60" />
@@ -478,6 +515,45 @@ const styles = StyleSheet.create({
   tripInfo: {
     paddingHorizontal: 20,
     marginBottom: 20,
+  },
+  activeTripNotice: {
+    backgroundColor: '#FFF3CD',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFEAA7',
+  },
+  activeTripContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  activeTripTextContainer: {
+    flex: 1,
+  },
+  activeTripTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 4,
+  },
+  activeTripMessage: {
+    fontSize: 14,
+    color: '#856404',
+    lineHeight: 18,
+  },
+  viewTripButton: {
+    backgroundColor: '#F39C12',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  viewTripButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   requestStatus: {
     backgroundColor: '#FFF3CD',

@@ -3,9 +3,10 @@ import { useLocation } from '@/contexts/LocationContext';
 import { Camera, LocationPuck, MapView, ShapeSource, SymbolLayer } from '@/lib/mapbox';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -28,25 +29,37 @@ export function LocationSelectionScreen({
   title = 'Choose Location',
   mode = 'destination',
 }: LocationSelectionScreenProps) {
+  const [isReady, setIsReady] = useState(false);
   const { location } = useLocation();
   const [searchText, setSearchText] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(null);
 
-  // Default to current location if available
   const defaultLocation = location ? {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
   } : {
-    latitude: 14.5995, // Manila default
+    latitude: 14.5995, 
     longitude: 120.9842,
   };
 
-  const handleMapPress = (event: any) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsReady(true);
+    }, 500); 
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleMapPress = async (event: any) => {
     const { geometry } = event;
     if (!geometry || geometry.type !== 'Point') return;
     const [lng, lat] = geometry.coordinates as [number, number];
+    
+    const reverseGeocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+    const address = reverseGeocode[0] ? `${reverseGeocode[0].street}, ${reverseGeocode[0].city}` : `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    
     const newLocation: LocationData = {
-      address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+      address,
       coordinates: [lng, lat],
     };
     setSelectedLocation(newLocation);
@@ -55,7 +68,6 @@ export function LocationSelectionScreen({
   const handleConfirmLocation = async () => {
     if (selectedLocation) {
       try {
-        // Save location to AsyncStorage based on mode
         const storageKey = mode === 'pickup' ? 'selectedPickupLocation' : 'selectedDestinationLocation';
         await AsyncStorage.setItem(storageKey, JSON.stringify(selectedLocation));
         
@@ -83,7 +95,6 @@ export function LocationSelectionScreen({
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <FontAwesome5 name="chevron-left" size={18} color="#2C3E50" />
@@ -92,7 +103,6 @@ export function LocationSelectionScreen({
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Current Location Section */}
       {mode === 'destination' && (
         <View style={styles.currentLocationSection}>
           <View style={styles.currentLocationHeader}>
@@ -105,7 +115,6 @@ export function LocationSelectionScreen({
         </View>
       )}
 
-      {/* Search Input */}
       <View style={styles.searchSection}>
         <View style={styles.searchContainer}>
           <FontAwesome5 name="search" size={16} color="#7F8C8D" />
@@ -124,16 +133,16 @@ export function LocationSelectionScreen({
         </View>
       </View>
 
-      {/* Map Section */}
       <View style={styles.mapSection}>
         <View style={styles.mapContainer}>
-          <MapView
-            style={styles.map}
-            styleURL={"mapbox://styles/mapbox/navigation-day-v1"}
-            onPress={handleMapPress}
-            logoEnabled={false}
-            attributionEnabled={false}
-          >
+          {isReady && (
+            <MapView
+              style={styles.map}
+              styleURL={"mapbox://styles/mapbox/navigation-day-v1"}
+              onPress={handleMapPress}
+              logoEnabled={false}
+              attributionEnabled={false}
+            >
             <Camera
               zoomLevel={16}
               centerCoordinate={[defaultLocation.longitude, defaultLocation.latitude]}
@@ -172,9 +181,9 @@ export function LocationSelectionScreen({
                 />
               </ShapeSource>
             )}
-          </MapView>
-          
-          {/* Map Instructions */}
+            </MapView>
+          )}
+
           <View style={styles.mapInstructions}>
             <FontAwesome5 name="hand-pointer" size={14} color="#7F8C8D" />
             <Text style={styles.instructionText}>Tap on map to select location</Text>
@@ -182,7 +191,6 @@ export function LocationSelectionScreen({
         </View>
       </View>
 
-      {/* Quick Actions */}
       <View style={styles.quickActions}>
         <TouchableOpacity 
           style={styles.currentLocationButton} 
@@ -193,7 +201,6 @@ export function LocationSelectionScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Action */}
       <View style={styles.bottomSection}>
         {selectedLocation && (
           <View style={styles.selectedLocationInfo}>
